@@ -229,6 +229,18 @@ export function LoginClient() {
               )}
               <span>{isSigningIn === 'google' ? 'Connecting...' : 'Continue with Google'}</span>
             </button>
+
+            <a
+              href="/pair"
+              className={cn(
+                'w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl',
+                'bg-bg-tertiary text-text-primary font-medium border border-white/10',
+                'transition-all duration-150 hover:bg-bg-quaternary hover:scale-[1.02]',
+                'focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary'
+              )}
+            >
+              Use Omi device
+            </a>
           </motion.div>
 
           {/* App download message - for users without accounts */}

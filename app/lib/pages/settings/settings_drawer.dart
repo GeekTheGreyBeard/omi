@@ -10,6 +10,7 @@ import 'package:omi/services/auth_service.dart';
 import 'package:omi/pages/settings/developer.dart';
 import 'package:omi/pages/settings/notifications_settings_page.dart';
 import 'package:omi/pages/settings/permissions_page.dart';
+import 'package:omi/pages/settings/portal_pairing_page.dart';
 import 'package:omi/pages/settings/profile.dart';
 import 'package:omi/pages/memories/page.dart';
 import 'package:omi/pages/settings/integrations_page.dart';
@@ -294,6 +295,8 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
     void goToDevice() => Navigator.of(context).push(MaterialPageRoute(builder: (context) => const DeviceSettings()));
     void goToIntegrations() =>
         Navigator.of(context).push(MaterialPageRoute(builder: (context) => const IntegrationsPage()));
+    void goToPortalPairing() =>
+        Navigator.of(context).push(MaterialPageRoute(builder: (context) => const PortalPairingPage()));
     void goToPermissions() {
       PlatformManager.instance.analytics.permissionsSettingsOpened();
       routeToPage(context, const PermissionsPage());
@@ -349,6 +352,8 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
       ],
       // --- Integrations ---
       _SearchableItem(title: context.l10n.integrations, icon: intIcon, onTap: goToIntegrations),
+      _SearchableItem(title: 'Link web portal', icon: intIcon, onTap: goToPortalPairing),
+      _SearchableItem(title: 'Portal login', icon: intIcon, onTap: goToPortalPairing),
       // --- Permissions ---
       _SearchableItem(title: context.l10n.permissions, icon: permIcon, onTap: goToPermissions),
       _SearchableItem(title: context.l10n.microphone, icon: permIcon, onTap: goToPermissions),
@@ -589,6 +594,15 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
                   showBetaTag: true,
                   onTap: () {
                     Navigator.of(context).push(MaterialPageRoute(builder: (context) => const IntegrationsPage()));
+                  },
+                ),
+                const Divider(height: 1, color: Color(0xFF3C3C43)),
+                _buildSettingsItem(
+                  title: 'Link web portal',
+                  icon: const FaIcon(FontAwesomeIcons.desktop, color: Color(0xFF8E8E93), size: 20),
+                  showNewTag: true,
+                  onTap: () {
+                    Navigator.of(context).push(MaterialPageRoute(builder: (context) => const PortalPairingPage()));
                   },
                 ),
                 const Divider(height: 1, color: Color(0xFF3C3C43)),
