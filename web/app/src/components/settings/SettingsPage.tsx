@@ -2007,7 +2007,7 @@ function DeveloperSection({
     { id: 'day_summary', label: 'Day Summary', description: 'Summary generated', icon: Calendar },
   ];
 
-  const mcpServerUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.omi.me'}/v1/mcp/sse`;
+  const mcpServerUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL || 'https://omi.splat-i.io'}/v1/mcp/sse`;
 
   const claudeDesktopConfig = `{
   "mcpServers": {

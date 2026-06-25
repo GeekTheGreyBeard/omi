@@ -24,7 +24,7 @@ export interface TranscriptionSocketOptions {
 
 type ConnectionState = 'disconnected' | 'connecting' | 'connected';
 
-const WS_BASE_URL = process.env.NEXT_PUBLIC_WS_BASE_URL || 'wss://api.omi.me';
+const WS_BASE_URL = process.env.NEXT_PUBLIC_WS_BASE_URL || 'wss://omi.splat-i.io';
 
 export class TranscriptionSocket {
   private ws: WebSocket | null = null;

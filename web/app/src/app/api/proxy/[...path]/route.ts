@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.omi.me';
+const API_BASE_URL = process.env.SERVER_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'https://omi.splat-i.io';
 
 /**
  * API Proxy to avoid CORS issues during development
- * Forwards requests from /api/proxy/* to https://api.omi.me/*
+ * Forwards requests from /api/proxy/* to the configured backend.
  */
 export async function GET(
   request: NextRequest,

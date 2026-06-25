@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { CaseStatusView } from '@/components/fair-use/CaseStatusView';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.omi.me';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://omi.splat-i.io';
 
 interface CaseStatus {
   case_ref: string;

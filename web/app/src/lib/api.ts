@@ -36,7 +36,7 @@ import type {
   PaymentPlan,
 } from '@/types/apps';
 
-// Always use proxy to avoid CORS (browser → proxy → api.omi.me)
+// Always use proxy to avoid CORS (browser to proxy to the configured Splat-I Omi backend)
 const API_BASE_URL = '/api/proxy';
 
 /**

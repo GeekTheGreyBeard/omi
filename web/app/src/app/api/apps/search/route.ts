@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Fuse from 'fuse.js';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.omi.me';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://omi.splat-i.io';
 
 // In-memory cache
 let appsCache: any[] | null = null;

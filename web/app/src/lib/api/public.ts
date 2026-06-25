@@ -4,7 +4,7 @@
  */
 
 // For public marketplace, use the configured API base URL or fallback to production
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.omi.me';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://omi.splat-i.io';
 
 /**
  * Fetch approved apps for the public marketplace
