@@ -111,7 +111,7 @@ class _PortalPairingPageState extends State<PortalPairingPage> {
             ),
             const SizedBox(height: 10),
             Text(
-              'Enter the pairing code shown in the Omi web portal. This phone will approve the browser session for your account.',
+              'Copy this phone and device identity into the Omi web portal, then enter the pairing code shown there. Only this device can approve that browser session.',
               style: TextStyle(color: Colors.white.withValues(alpha: 0.68), fontSize: 15, height: 1.45),
             ),
             const SizedBox(height: 24),

@@ -10,6 +10,8 @@ interface PortalPairing {
   code: string;
   status: PairingStatus;
   expires_at: string;
+  requested_phone_number?: string;
+  requested_device_identifier?: string;
   portalToken?: string;
   portal_token?: string;
   authenticator_device?: {
@@ -21,15 +23,34 @@ interface PortalPairing {
 export function PairDeviceClient() {
   const router = useRouter();
   const [pairing, setPairing] = useState<PortalPairing | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [secondsRemaining, setSecondsRemaining] = useState(0);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [deviceIdentifier, setDeviceIdentifier] = useState('');
+  const [deviceIdentifierType, setDeviceIdentifierType] = useState('device');
 
   const createPairing = useCallback(async () => {
+    const trimmedPhone = phoneNumber.trim();
+    const trimmedDevice = deviceIdentifier.trim();
+    if (!trimmedPhone || !trimmedDevice) {
+      setError('Enter the phone number and device ID shown in the Omi app.');
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/portal-pairing', { method: 'POST' });
+      const response = await fetch('/api/portal-pairing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phoneNumber: trimmedPhone,
+          deviceIdentifier: trimmedDevice,
+          deviceIdentifierType,
+        }),
+      });
       if (!response.ok) throw new Error('Could not create a pairing code.');
       setPairing(await response.json());
     } catch (err) {
@@ -37,11 +58,7 @@ export function PairDeviceClient() {
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  useEffect(() => {
-    createPairing();
-  }, [createPairing]);
+  }, [deviceIdentifier, deviceIdentifierType, phoneNumber]);
 
   useEffect(() => {
     if (!pairing || pairing.status !== 'pending') return;
@@ -102,19 +119,77 @@ export function PairDeviceClient() {
               Use your Omi device to unlock the portal.
             </h1>
             <p className="text-lg leading-8 text-text-tertiary">
-              Open Omi on your phone, choose Link web portal, and enter the code shown here. Your phone approves the
-              browser session and remains the authenticator for the account.
+              Open Omi on your phone, choose Link web portal, and copy the phone and device identity shown there. This
+              code can only be approved by that same phone.
             </p>
           </div>
 
           <div className="rounded-[8px] border border-white/10 bg-bg-secondary p-6 shadow-2xl shadow-black/30">
-            {loading && (
+            {!pairing && (
+              <form
+                className="space-y-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  createPairing();
+                }}
+              >
+                <div>
+                  <label className="mb-2 block text-sm text-text-tertiary" htmlFor="phoneNumber">
+                    Phone number
+                  </label>
+                  <input
+                    id="phoneNumber"
+                    value={phoneNumber}
+                    onChange={(event) => setPhoneNumber(event.target.value)}
+                    placeholder="+15555550100"
+                    className="w-full rounded-[8px] border border-white/10 bg-black px-4 py-3 text-white outline-none transition placeholder:text-text-tertiary focus:border-purple-primary"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm text-text-tertiary" htmlFor="deviceIdentifier">
+                    Device ID
+                  </label>
+                  <input
+                    id="deviceIdentifier"
+                    value={deviceIdentifier}
+                    onChange={(event) => setDeviceIdentifier(event.target.value)}
+                    placeholder="Device identifier from Omi"
+                    className="w-full rounded-[8px] border border-white/10 bg-black px-4 py-3 text-white outline-none transition placeholder:text-text-tertiary focus:border-purple-primary"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm text-text-tertiary" htmlFor="deviceIdentifierType">
+                    Device ID type
+                  </label>
+                  <select
+                    id="deviceIdentifierType"
+                    value={deviceIdentifierType}
+                    onChange={(event) => setDeviceIdentifierType(event.target.value)}
+                    className="w-full rounded-[8px] border border-white/10 bg-black px-4 py-3 text-white outline-none transition focus:border-purple-primary"
+                  >
+                    <option value="device">Device</option>
+                    <option value="android_id">Android ID</option>
+                    <option value="imei">IMEI</option>
+                  </select>
+                </div>
+                {error && <p className="text-sm text-error">{error}</p>}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full rounded-full bg-white px-5 py-3 font-medium text-black transition hover:bg-text-secondary disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {loading ? 'Generating...' : 'Generate pairing code'}
+                </button>
+              </form>
+            )}
+
+            {loading && pairing && (
               <div className="flex h-72 items-center justify-center">
                 <div className="h-12 w-12 rounded-full border-4 border-purple-primary/25 border-t-purple-primary animate-spin" />
               </div>
             )}
 
-            {!loading && error && (
+            {!loading && error && pairing && (
               <div className="space-y-5">
                 <p className="text-error">{error}</p>
                 <button
@@ -158,7 +233,10 @@ export function PairDeviceClient() {
                   ) : (
                     <div>
                       <p className="font-medium text-text-secondary">Waiting for device approval</p>
-                      <p className="mt-1 text-sm text-text-tertiary">Expires in {secondsRemaining}s.</p>
+                      <p className="mt-1 text-sm text-text-tertiary">
+                        Waiting for {pairing.requested_phone_number || phoneNumber} on{' '}
+                        {pairing.requested_device_identifier || deviceIdentifier}. Expires in {secondsRemaining}s.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -169,6 +247,16 @@ export function PairDeviceClient() {
                   disabled={pairing.status === 'approved'}
                 >
                   Generate new code
+                </button>
+                <button
+                  onClick={() => {
+                    setPairing(null);
+                    setError(null);
+                  }}
+                  className="w-full rounded-full border border-white/10 px-5 py-3 font-medium text-text-secondary transition hover:border-white/25 hover:text-white"
+                  disabled={pairing.status === 'approved'}
+                >
+                  Change device identity
                 </button>
               </div>
             )}

@@ -4,11 +4,17 @@ const API_BASE_URL = process.env.SERVER_API_BASE_URL || process.env.NEXT_PUBLIC_
 
 export async function POST(request: NextRequest) {
   try {
+    const requestBody = await request.json().catch(() => ({}));
     const response = await fetch(`${API_BASE_URL}/v1/portal-pairing`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         user_agent: request.headers.get('user-agent') || '',
+        phoneNumber: requestBody.phoneNumber || requestBody.phone_number || '',
+        phone_number: requestBody.phoneNumber || requestBody.phone_number || '',
+        deviceIdentifier: requestBody.deviceIdentifier || requestBody.device_identifier || '',
+        device_identifier: requestBody.deviceIdentifier || requestBody.device_identifier || '',
+        deviceIdentifierType: requestBody.deviceIdentifierType || requestBody.device_identifier_type || 'device',
       }),
     });
 
