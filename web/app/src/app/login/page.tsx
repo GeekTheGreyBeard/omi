@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { LoginClient } from './LoginClient';
+import { PairDeviceClient } from '../pair/PairDeviceClient';
 
 export const metadata: Metadata = {
   title: 'Sign In to Omi',
@@ -30,5 +30,5 @@ export const metadata: Metadata = {
 };
 
 export default function LoginPage() {
-  return <LoginClient />;
+  return <PairDeviceClient mode="login" />;
 }

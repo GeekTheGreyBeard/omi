@@ -21,8 +21,40 @@ interface PortalPairing {
   } | null;
 }
 
-export function PairDeviceClient() {
+type PairDeviceMode = 'login' | 'register';
+
+const pairingErrorMessage = (error: unknown): string => {
+  if (error === 'missing_identity') return 'Enter the phone number and device ID shown in the Omi app.';
+  if (typeof error === 'string') return error.replaceAll('_', ' ');
+  return 'Could not create a pairing code.';
+};
+
+const copy = {
+  login: {
+    eyebrow: 'Device login',
+    title: 'Use your Omi device to unlock the portal.',
+    body:
+      'Open Omi on your phone, choose Link web portal, and copy the phone and device identity shown there. This code can only be approved by that same phone.',
+    submit: 'Generate login code',
+    loading: 'Generating...',
+    headerAction: 'Register',
+    headerHref: '/register',
+  },
+  register: {
+    eyebrow: 'Device registration',
+    title: 'Register this browser with your Omi device.',
+    body:
+      'Use the phone number and device identity shown in the Omi app to create a secure registration code. Approve it on that same device to finish.',
+    submit: 'Generate registration code',
+    loading: 'Generating...',
+    headerAction: 'Log in',
+    headerHref: '/login',
+  },
+} satisfies Record<PairDeviceMode, Record<string, string>>;
+
+export function PairDeviceClient({ mode = 'login' }: { mode?: PairDeviceMode }) {
   const router = useRouter();
+  const pageCopy = copy[mode];
   const [pairing, setPairing] = useState<PortalPairing | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,8 +84,9 @@ export function PairDeviceClient() {
           deviceIdentifierType,
         }),
       });
-      if (!response.ok) throw new Error('Could not create a pairing code.');
-      setPairing(await response.json());
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(pairingErrorMessage(data?.error));
+      setPairing(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create a pairing code.');
     } finally {
@@ -102,27 +135,26 @@ export function PairDeviceClient() {
     <main className="min-h-screen bg-bg-primary text-text-primary">
       <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-5 py-6 sm:px-8">
         <header className="flex items-center justify-between">
-          <a href="/login" className="text-lg font-semibold tracking-normal text-text-primary">
+          <a href="/" className="text-lg font-semibold tracking-normal text-text-primary">
             Omi
           </a>
           <a
-            href="/login"
+            href={pageCopy.headerHref}
             className="rounded-full border border-white/10 px-4 py-2 text-sm text-text-secondary transition hover:border-white/25 hover:text-white"
           >
-            Log in
+            {pageCopy.headerAction}
           </a>
         </header>
 
         <section className="grid flex-1 items-center gap-10 py-10 lg:grid-cols-[1fr_420px]">
           <div className="max-w-xl">
-            <p className="mb-4 text-sm font-medium uppercase tracking-[0.16em] text-purple-primary">Device login</p>
-            <h1 className="mb-5 text-4xl font-semibold leading-tight text-white sm:text-5xl">
-              Use your Omi device to unlock the portal.
-            </h1>
-            <p className="text-lg leading-8 text-text-tertiary">
-              Open Omi on your phone, choose Link web portal, and copy the phone and device identity shown there. This
-              code can only be approved by that same phone.
+            <p className="mb-4 text-sm font-medium uppercase tracking-[0.16em] text-purple-primary">
+              {pageCopy.eyebrow}
             </p>
+            <h1 className="mb-5 text-4xl font-semibold leading-tight text-white sm:text-5xl">
+              {pageCopy.title}
+            </h1>
+            <p className="text-lg leading-8 text-text-tertiary">{pageCopy.body}</p>
           </div>
 
           <div className="rounded-[8px] border border-white/10 bg-bg-secondary p-6 shadow-2xl shadow-black/30">
@@ -179,7 +211,7 @@ export function PairDeviceClient() {
                   disabled={loading}
                   className="w-full rounded-full bg-white px-5 py-3 font-medium text-black transition hover:bg-text-secondary disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {loading ? 'Generating...' : 'Generate pairing code'}
+                  {loading ? pageCopy.loading : pageCopy.submit}
                 </button>
               </form>
             )}

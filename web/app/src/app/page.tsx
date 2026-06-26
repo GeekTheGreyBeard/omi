@@ -67,7 +67,7 @@ export default function HomePage() {
             Log in
           </Link>
           <Link
-            href="/pair"
+            href="/register"
             className="flex min-h-14 items-center justify-center rounded-full bg-white px-6 py-3 font-medium text-black transition hover:bg-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
           >
             Register

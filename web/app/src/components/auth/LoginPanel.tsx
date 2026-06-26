@@ -82,7 +82,7 @@ export function LoginPanel({ isOpen, onClose }: LoginPanelProps) {
                   <button
                     onClick={() => {
                       onClose();
-                      router.push('/pair');
+                      router.push('/login');
                     }}
                     className={cn(
                       'w-full flex items-center justify-center gap-3 px-4 py-3.5 rounded-xl',
@@ -91,7 +91,7 @@ export function LoginPanel({ isOpen, onClose }: LoginPanelProps) {
                       'shadow-lg shadow-white/5'
                     )}
                   >
-                    Pair or log in
+                    Log in with Omi
                   </button>
                 </div>
               </div>
