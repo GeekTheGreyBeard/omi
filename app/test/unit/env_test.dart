@@ -6,16 +6,11 @@ import 'package:omi/env/env.dart';
 /// we test with a single init and exercise the override/flag mechanisms.
 class _TestEnvFields implements EnvFields {
   @override
-  String? get stagingApiUrl => null; // STAGING_API_URL not configured
-
-  @override
   String? get openAIAPIKey => null;
   @override
-  String? get mixpanelProjectToken => null;
+  String? get posthogApiKey => null;
   @override
   String? get apiBaseUrl => 'https://api.prod.example.com/';
-  @override
-  String? get growthbookApiKey => null;
   @override
   String? get googleMapsApiKey => null;
   @override
@@ -32,6 +27,8 @@ class _TestEnvFields implements EnvFields {
   bool? get useWebAuth => false;
   @override
   bool? get useAuthCustomToken => false;
+  @override
+  String? get stagingApiUrl => null;
 }
 
 void main() {

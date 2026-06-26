@@ -1,20 +1,15 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:omi/env/env.dart';
 
-/// EnvFields stub with an explicit stagingApiUrl to exercise the isTrue path.
+/// EnvFields stub for exercising static staging URL behavior.
 /// Must live in a separate test file because Env._instance is late final.
 class _StagingEnvFields implements EnvFields {
   @override
-  String? get stagingApiUrl => 'https://staging.omiapi.com/';
-
-  @override
   String? get openAIAPIKey => null;
   @override
-  String? get mixpanelProjectToken => null;
+  String? get posthogApiKey => null;
   @override
   String? get apiBaseUrl => 'https://api.prod.example.com/';
-  @override
-  String? get growthbookApiKey => null;
   @override
   String? get googleMapsApiKey => null;
   @override
@@ -31,6 +26,8 @@ class _StagingEnvFields implements EnvFields {
   bool? get useWebAuth => false;
   @override
   bool? get useAuthCustomToken => false;
+  @override
+  String? get stagingApiUrl => 'https://staging.omiapi.com/';
 }
 
 void main() {
@@ -54,7 +51,7 @@ void main() {
       expect(Env.isUsingStagingApi, isTrue);
     });
 
-    test('true with normalisation — trailing slash and case differences', () {
+    test('true with normalisation - trailing slash and case differences', () {
       Env.overrideApiBaseUrl('https://Staging.OmiApi.com');
       expect(Env.isUsingStagingApi, isTrue);
     });

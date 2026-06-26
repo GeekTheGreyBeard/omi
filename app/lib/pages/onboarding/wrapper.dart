@@ -302,10 +302,11 @@ class _OnboardingWrapperState extends State<OnboardingWrapper> with TickerProvid
       NameWidget(
         goNext: () {
           _goNext(); // Go to Primary Language page
+          final firebaseUser = FirebaseAuth.instance.currentUser;
           IntercomManager.instance.updateUser(
-            FirebaseAuth.instance.currentUser!.email,
-            FirebaseAuth.instance.currentUser!.displayName,
-            FirebaseAuth.instance.currentUser!.uid,
+            firebaseUser?.email ?? SharedPreferencesUtil().email,
+            firebaseUser?.displayName ?? SharedPreferencesUtil().fullName,
+            firebaseUser?.uid ?? SharedPreferencesUtil().uid,
           );
           PlatformManager.instance.analytics.onboardingStepCompleted('Name');
         },
@@ -373,6 +374,7 @@ class _OnboardingWrapperState extends State<OnboardingWrapper> with TickerProvid
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
         backgroundColor: Theme.of(context).colorScheme.primary,
+        resizeToAvoidBottomInset: true,
         body: _controller!.index == kAuthPage
             ? Stack(
                 children: [

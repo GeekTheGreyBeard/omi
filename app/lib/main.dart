@@ -66,6 +66,7 @@ import 'package:omi/services/notifications.dart';
 import 'package:omi/services/notifications/action_item_notification_handler.dart';
 import 'package:omi/services/notifications/important_conversation_notification_handler.dart';
 import 'package:omi/services/notifications/merge_notification_handler.dart';
+import 'package:omi/services/portal_login_request_monitor.dart';
 import 'package:omi/services/services.dart';
 import 'package:omi/services/wals.dart';
 import 'package:omi/utils/debug_log_manager.dart';
@@ -245,12 +246,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     if (SharedPreferencesUtil().devLogsToFileEnabled) {
       DebugLogManager.setEnabled(true);
     }
+    PortalLoginRequestMonitor.instance.start();
 
     super.initState();
   }
 
   void _deinit() {
     Logger.debug("App > _deinit");
+    PortalLoginRequestMonitor.instance.stop();
     ServiceManager.instance().deinit();
     ApiClient.dispose();
   }

@@ -27,6 +27,58 @@ class OmiAuthDeviceIdentity {
   bool get isComplete => phoneNumber.trim().isNotEmpty && deviceIdentifier.trim().isNotEmpty;
 }
 
+class PortalLoginRequest {
+  final String id;
+  final String code;
+  final String status;
+  final String phoneNumber;
+  final DateTime? createdAt;
+  final DateTime? expiresAt;
+  final String userAgent;
+
+  const PortalLoginRequest({
+    required this.id,
+    required this.code,
+    required this.status,
+    required this.phoneNumber,
+    required this.createdAt,
+    required this.expiresAt,
+    required this.userAgent,
+  });
+
+  factory PortalLoginRequest.fromJson(Map<String, dynamic> json) {
+    return PortalLoginRequest(
+      id: (json['id'] as String?) ?? '',
+      code: (json['code'] as String?) ?? '',
+      status: (json['status'] as String?) ?? 'pending',
+      phoneNumber: (json['requested_phone_number'] as String?) ?? '',
+      createdAt: DateTime.tryParse((json['created_at'] as String?) ?? ''),
+      expiresAt: DateTime.tryParse((json['expires_at'] as String?) ?? ''),
+      userAgent: (json['user_agent'] as String?) ?? '',
+    );
+  }
+}
+
+class PortalAccessStatus {
+  final bool registered;
+  final bool locked;
+  final int deviceCount;
+
+  const PortalAccessStatus({
+    required this.registered,
+    required this.locked,
+    required this.deviceCount,
+  });
+
+  factory PortalAccessStatus.fromJson(Map<String, dynamic> json) {
+    return PortalAccessStatus(
+      registered: json['registered'] == true,
+      locked: json['locked'] == true,
+      deviceCount: (json['device_count'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
 class AuthService {
   static final AuthService _instance = AuthService._internal();
   static AuthService get instance => _instance;
@@ -129,6 +181,24 @@ class AuthService {
       return false;
     }
 
+    final legacyClaimed = await _claimLegacyAccountCode(
+      identity: identity,
+      normalizedPhone: normalizedPhone,
+      deviceIdentifier: deviceIdentifier,
+      normalizedCode: normalizedCode,
+    );
+    if (legacyClaimed) return true;
+
+    Logger.debug('Account-code claim did not complete; trying portal-pairing approval fallback');
+    return approvePortalPairingCode(identity: identity, pairingCode: normalizedCode);
+  }
+
+  Future<bool> _claimLegacyAccountCode({
+    required OmiAuthDeviceIdentity identity,
+    required String normalizedPhone,
+    required String deviceIdentifier,
+    required String normalizedCode,
+  }) async {
     final baseUrl = const String.fromEnvironment(
       'SPLATI_AUTH_BASE_URL',
       defaultValue: 'http://omi-auth-staging.gtgb.io',
@@ -139,19 +209,25 @@ class AuthService {
     );
     final normalizedClaimPath = claimPath.startsWith('/') ? claimPath : '/$claimPath';
 
-    final response = await http.post(
-      Uri.parse('$baseUrl$normalizedClaimPath'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'code': normalizedCode,
-        'phoneNumber': normalizedPhone,
-        'phone_number': normalizedPhone,
-        'deviceIdentifier': deviceIdentifier,
-        'imei': deviceIdentifier,
-        'deviceIdentifierType': identity.deviceIdentifierType,
-        'phoneVerificationRequired': false,
-      }),
-    );
+    late final http.Response response;
+    try {
+      response = await http.post(
+        Uri.parse('$baseUrl$normalizedClaimPath'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'code': normalizedCode,
+          'phoneNumber': normalizedPhone,
+          'phone_number': normalizedPhone,
+          'deviceIdentifier': deviceIdentifier,
+          'imei': deviceIdentifier,
+          'deviceIdentifierType': identity.deviceIdentifierType,
+          'phoneVerificationRequired': false,
+        }),
+      );
+    } catch (e) {
+      Logger.debug('Account-code claim request failed: $e');
+      return false;
+    }
 
     Logger.debug('Account-code claim response status: ${response.statusCode}');
     if (response.statusCode != 200) {
@@ -166,24 +242,150 @@ class AuthService {
       return false;
     }
 
-    final expiresAt = _parsePlatformTokenExpiry(body);
-    SharedPreferencesUtil().authToken = platformToken;
-    SharedPreferencesUtil().tokenExpirationTime = expiresAt.millisecondsSinceEpoch;
-    SharedPreferencesUtil().uid = (body['uid'] as String?) ?? SharedPreferencesUtil().uid;
-    SharedPreferencesUtil().email = '';
-    final displayName = (body['displayName'] as String?) ?? '';
-    if (displayName.isNotEmpty) {
-      final parts = displayName.trim().split(RegExp(r'\s+'));
-      SharedPreferencesUtil().givenName = parts.first;
-      SharedPreferencesUtil().familyName = parts.length > 1 ? parts.sublist(1).join(' ') : '';
-    }
-
+    _storePlatformSession(body: body, token: platformToken);
+    await registerPortalAccess(identity: identity);
     return true;
   }
 
   Future<bool> approvePortalPairingCode({
     required OmiAuthDeviceIdentity identity,
     required String pairingCode,
+  }) async {
+    return decidePortalPairingCode(identity: identity, pairingCode: pairingCode, approve: true);
+  }
+
+  Future<List<PortalLoginRequest>> getPendingPortalLoginRequests({
+    required OmiAuthDeviceIdentity identity,
+  }) async {
+    final phoneNumber = identity.phoneNumber.trim();
+    if (phoneNumber.isEmpty) return [];
+
+    final baseUrl = (Env.apiBaseUrl ?? Env.defaultSplatIApiBaseUrl).replaceFirst(RegExp(r'/+$'), '');
+    final query = {
+      'phoneNumber': phoneNumber,
+      'status': 'pending',
+      'deviceIdentifier': identity.deviceIdentifier,
+      'deviceIdentifierType': identity.deviceIdentifierType,
+      'deviceName': defaultTargetPlatform.name,
+    };
+    final response = await http.get(
+      Uri.parse('$baseUrl/v1/portal-pairing').replace(queryParameters: query),
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    Logger.debug('Portal pairing pending request response status: ${response.statusCode}');
+    if (response.statusCode != 200) {
+      Logger.debug('Portal pairing pending request failed: ${response.body}');
+      return [];
+    }
+
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final requests = (body['requests'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(PortalLoginRequest.fromJson)
+        .where((request) => request.id.isNotEmpty)
+        .toList();
+    return requests;
+  }
+
+  Future<PortalAccessStatus?> getPortalAccessStatus({
+    required OmiAuthDeviceIdentity identity,
+  }) async {
+    final phoneNumber = identity.phoneNumber.trim();
+    if (phoneNumber.isEmpty) return null;
+
+    final baseUrl = (Env.apiBaseUrl ?? Env.defaultSplatIApiBaseUrl).replaceFirst(RegExp(r'/+$'), '');
+    final query = {
+      'phoneNumber': phoneNumber,
+      if (identity.deviceIdentifier.trim().isNotEmpty) 'deviceIdentifier': identity.deviceIdentifier,
+      if (identity.deviceIdentifierType.trim().isNotEmpty) 'deviceIdentifierType': identity.deviceIdentifierType,
+      'deviceName': defaultTargetPlatform.name,
+    };
+    final response = await http.get(
+      Uri.parse('$baseUrl/v1/portal-access').replace(queryParameters: query),
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    Logger.debug('Portal access status response: ${response.statusCode}');
+    if (response.statusCode != 200) {
+      Logger.debug('Portal access status failed: ${response.body}');
+      return null;
+    }
+
+    return PortalAccessStatus.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
+  Future<PortalAccessStatus?> registerPortalAccess({
+    required OmiAuthDeviceIdentity identity,
+  }) async {
+    if (!identity.isComplete) return null;
+
+    final baseUrl = (Env.apiBaseUrl ?? Env.defaultSplatIApiBaseUrl).replaceFirst(RegExp(r'/+$'), '');
+    final response = await http.post(
+      Uri.parse('$baseUrl/v1/portal-access'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'phoneNumber': identity.phoneNumber,
+        'phone_number': identity.phoneNumber,
+        'deviceIdentifier': identity.deviceIdentifier,
+        'device_identifier': identity.deviceIdentifier,
+        'deviceIdentifierType': identity.deviceIdentifierType,
+        'device_identifier_type': identity.deviceIdentifierType,
+        'deviceName': defaultTargetPlatform.name,
+      }),
+    );
+
+    Logger.debug('Portal access registration response: ${response.statusCode}');
+    if (response.statusCode != 200) {
+      Logger.debug('Portal access registration failed: ${response.body}');
+      return null;
+    }
+
+    return PortalAccessStatus.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
+  Future<PortalAccessStatus?> setPortalAccessLocked({
+    required OmiAuthDeviceIdentity identity,
+    required bool locked,
+  }) async {
+    if (!identity.isComplete) return null;
+
+    final baseUrl = (Env.apiBaseUrl ?? Env.defaultSplatIApiBaseUrl).replaceFirst(RegExp(r'/+$'), '');
+    final response = await http.post(
+      Uri.parse('$baseUrl/v1/portal-access'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'action': locked ? 'lock' : 'unlock',
+        'phoneNumber': identity.phoneNumber,
+        'phone_number': identity.phoneNumber,
+        'deviceIdentifier': identity.deviceIdentifier,
+        'device_identifier': identity.deviceIdentifier,
+        'deviceIdentifierType': identity.deviceIdentifierType,
+        'device_identifier_type': identity.deviceIdentifierType,
+        'deviceName': defaultTargetPlatform.name,
+      }),
+    );
+
+    Logger.debug('Portal access lock response: ${response.statusCode}');
+    if (response.statusCode != 200) {
+      Logger.debug('Portal access lock update failed: ${response.body}');
+      return null;
+    }
+
+    return PortalAccessStatus.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
+  Future<bool> declinePortalPairingCode({
+    required OmiAuthDeviceIdentity identity,
+    required String pairingCode,
+  }) async {
+    return decidePortalPairingCode(identity: identity, pairingCode: pairingCode, approve: false);
+  }
+
+  Future<bool> decidePortalPairingCode({
+    required OmiAuthDeviceIdentity identity,
+    required String pairingCode,
+    required bool approve,
   }) async {
     final normalizedCode = pairingCode.trim().toUpperCase().replaceAll(RegExp(r'[^A-Z0-9-]'), '');
     if (normalizedCode.isEmpty || !identity.isComplete) {
@@ -192,7 +394,7 @@ class AuthService {
 
     final baseUrl = (Env.apiBaseUrl ?? Env.defaultSplatIApiBaseUrl).replaceFirst(RegExp(r'/+$'), '');
     final response = await http.post(
-      Uri.parse('$baseUrl/v1/portal-pairing/${Uri.encodeComponent(normalizedCode)}/approve'),
+      Uri.parse('$baseUrl/v1/portal-pairing/${Uri.encodeComponent(normalizedCode)}/${approve ? 'approve' : 'decline'}'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
         'uid': SharedPreferencesUtil().uid.isNotEmpty ? SharedPreferencesUtil().uid : 'splati-internal-user',
@@ -207,22 +409,50 @@ class AuthService {
       }),
     );
 
-    Logger.debug('Portal pairing approval response status: ${response.statusCode}');
+    Logger.debug('Portal pairing decision response status: ${response.statusCode}');
     if (response.statusCode != 200) {
-      Logger.debug('Portal pairing approval failed: ${response.body}');
+      Logger.debug('Portal pairing decision failed: ${response.body}');
       return false;
     }
 
     final body = jsonDecode(response.body) as Map<String, dynamic>;
-    return body['status'] == 'approved';
+    if (!approve) return body['status'] == 'declined';
+    if (body['status'] != 'approved') return false;
+
+    final portalToken = (body['portalToken'] as String?) ?? (body['portal_token'] as String?) ?? '';
+    if (portalToken.isEmpty) {
+      Logger.debug('Portal pairing approved without a portal token');
+      return false;
+    }
+
+    _storePlatformSession(body: body, token: portalToken);
+    return true;
+  }
+
+  void _storePlatformSession({
+    required Map<String, dynamic> body,
+    required String token,
+  }) {
+    final expiresAt = _parsePlatformTokenExpiry(body);
+    SharedPreferencesUtil().authToken = token;
+    SharedPreferencesUtil().tokenExpirationTime = expiresAt.millisecondsSinceEpoch;
+    SharedPreferencesUtil().uid =
+        (body['uid'] as String?) ?? (body['account_id'] as String?) ?? SharedPreferencesUtil().uid;
+    SharedPreferencesUtil().email = '';
+    final displayName = (body['displayName'] as String?) ?? '';
+    if (displayName.isNotEmpty) {
+      final parts = displayName.trim().split(RegExp(r'\s+'));
+      SharedPreferencesUtil().givenName = parts.first;
+      SharedPreferencesUtil().familyName = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+    }
   }
 
   DateTime _parsePlatformTokenExpiry(Map<String, dynamic> body) {
-    final expiresAt = body['expiresAt'] as String?;
-    if (expiresAt != null) {
-      final parsed = DateTime.tryParse(expiresAt);
-      if (parsed != null) return parsed;
-    }
+    final expiresAt = (body['expiresAt'] as String?) ??
+        (body['portalTokenExpiresAt'] as String?) ??
+        (body['portal_token_expires_at'] as String?);
+    final parsedExpiresAt = expiresAt == null ? null : DateTime.tryParse(expiresAt);
+    if (parsedExpiresAt != null) return parsedExpiresAt;
 
     final expiresInSeconds = body['expiresInSeconds'];
     if (expiresInSeconds is int) {
@@ -321,5 +551,4 @@ class AuthService {
       }
     }
   }
-
 }

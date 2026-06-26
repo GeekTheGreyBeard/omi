@@ -2,6 +2,7 @@ abstract class Env {
   static late final EnvFields _instance;
   static const String _apiBaseUrlFromDefine = String.fromEnvironment('API_BASE_URL');
   static const String _stagingApiUrlFromDefine = String.fromEnvironment('STAGING_API_URL');
+  static const String _liveTranscriptionWsBaseUrlFromDefine = String.fromEnvironment('LIVE_TRANSCRIPTION_WS_BASE_URL');
   static String? _apiBaseUrlOverride;
   static String? _agentProxyWsUrlOverride;
   static bool isTestFlight = false;
@@ -35,6 +36,12 @@ abstract class Env {
   }
 
   static String? _nonEmpty(String value) => value.isEmpty ? null : value;
+
+  /// Optional WebSocket base dedicated to live transcription.
+  ///
+  /// This lets preproduction keep REST and portal auth on the public Omi host
+  /// while routing `/v4/listen` streaming to the compatibility bridge.
+  static String? get liveTranscriptionWsBaseUrl => _nonEmpty(_liveTranscriptionWsBaseUrlFromDefine);
 
   /// Whether STAGING_API_URL is configured in the environment.
   static bool get isStagingConfigured => stagingApiUrl != null;

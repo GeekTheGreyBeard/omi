@@ -96,12 +96,12 @@ class AuthenticationProvider extends BaseProvider {
         PlatformManager.instance.analytics.identify();
         onSignIn();
       } else {
-        AppSnackbar.showSnackbarError('Account pairing failed. Check the phone number and code, then try again.');
+        AppSnackbar.showSnackbarError('Registration failed. Check the phone number and code, then try again.');
       }
     } catch (e, stackTrace) {
       Logger.debug('Account-code pairing error: $e');
       PlatformManager.instance.crashReporter.reportCrash(e, stackTrace);
-      AppSnackbar.showSnackbarError('Account pairing failed. Check the phone number and code, then try again.');
+      AppSnackbar.showSnackbarError('Registration failed. Check the phone number and code, then try again.');
     } finally {
       setLoadingState(false);
     }

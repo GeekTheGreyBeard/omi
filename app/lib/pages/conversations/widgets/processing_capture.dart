@@ -30,6 +30,22 @@ class ConversationCaptureWidget extends StatefulWidget {
 class _ConversationCaptureWidgetState extends State<ConversationCaptureWidget> {
   bool _isPhoneMicPaused = false;
 
+  String _transcriptionStatusText(BuildContext context, CaptureProvider provider, {required bool hasPhotos}) {
+    if (provider.isTranscriptionOffline) {
+      return context.l10n.offline;
+    }
+    if (provider.isTranscriptionReconnecting) {
+      return context.l10n.transcriptionReconnecting;
+    }
+    if (provider.isTranscriptionConnecting) {
+      return context.l10n.transcriptionConnecting;
+    }
+    if (hasPhotos) {
+      return context.l10n.capturingAudioAndGeneratingTranscript;
+    }
+    return context.l10n.listening;
+  }
+
   @override
   Widget build(BuildContext context) {
     // Hide capture widget when a phone call is in progress (banner replaces it)
@@ -235,9 +251,11 @@ class _ConversationCaptureWidgetState extends State<ConversationCaptureWidget> {
     } else if (!isHavingRecordingDevice && !isUsingPhoneMic) {
       stateText = "";
     } else if (isUsingPhoneMic || isHavingRecordingDevice) {
-      // Show "Listening" for all active recording states — WAL ensures audio is
-      // saved locally regardless of transcription connection status.
-      if (transcriptServiceStateOk) {
+      if (captureProvider.isTranscriptionOffline ||
+          captureProvider.isTranscriptionReconnecting ||
+          captureProvider.isTranscriptionConnecting) {
+        stateText = _transcriptionStatusText(context, captureProvider, hasPhotos: false);
+      } else if (transcriptServiceStateOk) {
         var lastEvent = captureProvider.transcriptionServiceStatuses.lastOrNull;
         if (lastEvent is MessageServiceStatusEvent) {
           bool transcriptionDiagnosticEnabled = SharedPreferencesUtil().transcriptionDiagnosticEnabled;
@@ -248,7 +266,7 @@ class _ConversationCaptureWidgetState extends State<ConversationCaptureWidget> {
           stateText = context.l10n.listening;
         }
       } else {
-        stateText = context.l10n.listening;
+        stateText = context.l10n.transcriptionUnavailable;
       }
       statusIndicator = const RecordingStatusIndicator();
     }
@@ -302,15 +320,11 @@ class _ConversationCaptureWidgetState extends State<ConversationCaptureWidget> {
 
     // Determine if this is an OmiGlass-type device (captures photos)
     bool hasPhotos = provider.photos.isNotEmpty;
-    // Show "Listening" for all active recording states — WAL ensures audio is
-    // saved locally regardless of transcription connection status.
     String statusText = provider.recordingState == RecordingState.interrupted && provider.isCallActive
         ? context.l10n.paused
         : isPaused
             ? (isDeviceRecording ? context.l10n.muted : context.l10n.paused)
-            : hasPhotos
-                ? 'Capturing'
-                : context.l10n.listening;
+            : _transcriptionStatusText(context, provider, hasPhotos: hasPhotos);
 
     // When recording is active, show the unified UI design
     if (isDeviceRecording || isPhoneRecording) {

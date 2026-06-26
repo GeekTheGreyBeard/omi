@@ -138,14 +138,25 @@ class SpeechProfileProvider extends ChangeNotifier
 
       if (_socket?.state != SocketServiceState.connected) {
         // wait for websocket to connect
-        await Future.delayed(const Duration(seconds: 2));
+        await Future.delayed(const Duration(seconds: 5));
+      }
+
+      if (_socket?.state != SocketServiceState.connected) {
+        _stopPhoneMicStreaming();
+        throw Exception('Speech profile socket did not connect');
       }
 
       setInitialised(true);
       return true;
     } catch (e) {
       Logger.debug('Error during initialise: $e');
-      notifyError('SOCKET_INIT_FAILED');
+      _stopPhoneMicStreaming();
+      startedRecording = false;
+      isInitialised = false;
+      await _socket?.stop(reason: 'initialise failed');
+      if (!e.toString().toLowerCase().contains('microphone permission denied')) {
+        notifyError('SOCKET_INIT_FAILED');
+      }
       return false;
     } finally {
       setInitialising(false);
@@ -169,17 +180,16 @@ class SpeechProfileProvider extends ChangeNotifier
   }
 
   Future<void> _initiateWebsocket({required BleAudioCodec codec, int? sampleRate, bool force = false}) async {
-    String language = SharedPreferencesUtil().hasSetPrimaryLanguage
-        ? SharedPreferencesUtil().userPrimaryLanguage
-        : "multi";
+    String language =
+        SharedPreferencesUtil().hasSetPrimaryLanguage ? SharedPreferencesUtil().userPrimaryLanguage : "multi";
     int rate = sampleRate ?? (codec.isOpusSupported() ? 16000 : 8000);
 
     _socket = await ServiceManager.instance().socket.speechProfile(
-      codec: codec,
-      sampleRate: rate,
-      language: language,
-      force: force,
-    );
+          codec: codec,
+          sampleRate: rate,
+          language: language,
+          force: force,
+        );
     if (_socket == null) {
       throw Exception("Can not create new speech profile socket");
     }
@@ -191,7 +201,13 @@ class SpeechProfileProvider extends ChangeNotifier
     Logger.debug('Starting phone mic streaming for speech profile...');
 
     // Request mic permission
-    await Permission.microphone.request();
+    final microphoneStatus = await Permission.microphone.request();
+    if (!microphoneStatus.isGranted) {
+      notifyError('MICROPHONE_PERMISSION_DENIED');
+      throw Exception('Microphone permission denied');
+    }
+
+    final recordingStarted = Completer<void>();
 
     await ServiceManager.instance().mic.start(
       onByteReceived: (Uint8List bytes) {
@@ -208,9 +224,19 @@ class SpeechProfileProvider extends ChangeNotifier
       onRecording: () {
         Logger.debug('Phone mic recording started');
         updateStartedRecording(true);
+        if (!recordingStarted.isCompleted) {
+          recordingStarted.complete();
+        }
       },
       onStop: () {
         Logger.debug('Phone mic recording stopped');
+      },
+    );
+
+    await recordingStarted.future.timeout(
+      const Duration(seconds: 3),
+      onTimeout: () {
+        throw Exception('Phone microphone recorder did not enter recording state');
       },
     );
   }
@@ -221,19 +247,6 @@ class SpeechProfileProvider extends ChangeNotifier
       Logger.debug('Stopping phone mic streaming');
       ServiceManager.instance().mic.stop();
     }
-  }
-
-  _handleCompletion() async {
-    if (uploadingProfile || profileCompleted) return;
-    // Only count words from user segments, not Omi questions
-    String userText = segments.where((e) => e.speakerId != omiSpeakerId).map((e) => e.text).join(' ').trim();
-    int wordsCount = userText.split(' ').length;
-    percentageCompleted = (wordsCount / targetWordsCount).clamp(0, 1);
-    notifyListeners();
-    if (percentageCompleted == 1) {
-      await finalize();
-    }
-    notifyListeners();
   }
 
   Future finalize() async {

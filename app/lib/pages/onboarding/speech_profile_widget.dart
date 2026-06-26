@@ -185,6 +185,22 @@ class _SpeechProfileWidgetState extends State<SpeechProfileWidget> with TickerPr
                   ),
                   barrierDismissible: false,
                 );
+              } else if (error == 'MICROPHONE_PERMISSION_DENIED') {
+                showDialog(
+                  context: context,
+                  builder: (c) => getDialog(
+                    context,
+                    () {
+                      Navigator.pop(context);
+                    },
+                    () {},
+                    context.l10n.microphonePermissionRequired,
+                    context.l10n.microphoneAccessDescription,
+                    okButtonText: context.l10n.ok,
+                    singleButton: true,
+                  ),
+                  barrierDismissible: false,
+                );
               } else if (error == 'UPLOAD_FAILED') {
                 showDialog(
                   context: context,
@@ -254,252 +270,268 @@ class _SpeechProfileWidgetState extends State<SpeechProfileWidget> with TickerPr
                 );
               }
             },
-            child: Column(
-              children: [
-                Expanded(child: Container()),
-                Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.fromLTRB(32, 0, 32, MediaQuery.of(context).padding.bottom + 8),
-                  decoration: const BoxDecoration(
-                    color: Colors.black,
-                    borderRadius: BorderRadius.only(topLeft: Radius.circular(40), topRight: Radius.circular(40)),
-                  ),
-                  child: SafeArea(
-                    top: false,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final mediaQuery = MediaQuery.of(context);
+                final keyboardVisible = mediaQuery.viewInsets.bottom > 0;
+                return SingleChildScrollView(
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: EdgeInsets.only(bottom: mediaQuery.viewInsets.bottom),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
                     child: Column(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        const SizedBox(height: 32),
-
-                        // Title
-                        Text(
-                          provider.startedRecording && !provider.profileCompleted
-                              ? 'Answer with your voice:'
-                              : 'Please find a quiet place',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            height: 1.2,
-                            fontFamily: 'Manrope',
+                        SizedBox(height: keyboardVisible ? 24 : constraints.maxHeight * 0.28),
+                        Container(
+                          width: double.infinity,
+                          padding: EdgeInsets.fromLTRB(32, 0, 32, mediaQuery.padding.bottom + 8),
+                          decoration: const BoxDecoration(
+                            color: Colors.black,
+                            borderRadius:
+                                BorderRadius.only(topLeft: Radius.circular(40), topRight: Radius.circular(40)),
                           ),
-                          textAlign: TextAlign.center,
-                        ),
+                          child: SafeArea(
+                            top: false,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const SizedBox(height: 32),
 
-                        const SizedBox(height: 16),
-
-                        // Content area changes based on state
-                        if (!provider.startedRecording) ...[
-                          // Intro text
-                          Text(
-                            'Omi needs to learn your goals and your voice. Answer questions with your voice. You\'ll be able to modify it later.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.6),
-                              fontSize: 16,
-                              height: 1.5,
-                              fontFamily: 'Manrope',
-                            ),
-                          ),
-
-                          const SizedBox(height: 32),
-
-                          // Get Started button
-                          provider.isInitialising
-                              ? const CircularProgressIndicator(color: Colors.white)
-                              : SizedBox(
-                                  width: double.infinity,
-                                  height: 56,
-                                  child: ElevatedButton(
-                                    onPressed: () async {
-                                      // Check if user has set primary language, if not, show dialog
-                                      if (!context.read<HomeProvider>().hasSetPrimaryLanguage) {
-                                        await LanguageSelectionDialog.show(context);
-                                      }
-
-                                      await stopAllRecording();
-
-                                      // Initialize speech profile with phone mic as input source
-                                      bool success = await provider.initialise(
-                                        usePhoneMic: true,
-                                        processConversationCallback: () {
-                                          Provider.of<CaptureProvider>(
-                                            context,
-                                            listen: false,
-                                          ).forceProcessingCurrentConversation();
-                                        },
-                                      );
-
-                                      if (!success) {
-                                        return;
-                                      }
-
-                                      provider.forceCompletionTimer = Timer(
-                                        Duration(seconds: provider.maxDuration),
-                                        () async {
-                                          provider.finalize();
-                                        },
-                                      );
-
-                                      if (!mounted) return;
-                                      _questionAnimationController.forward();
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.white,
-                                      foregroundColor: Colors.black,
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-                                      elevation: 0,
-                                    ),
-                                    child: Text(
-                                      context.l10n.getStarted,
-                                      style: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w600,
-                                        fontFamily: 'Manrope',
-                                      ),
-                                    ),
+                                // Title
+                                Text(
+                                  provider.startedRecording && !provider.profileCompleted
+                                      ? 'Answer with your voice:'
+                                      : 'Please find a quiet place',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
+                                    height: 1.2,
+                                    fontFamily: 'Manrope',
                                   ),
+                                  textAlign: TextAlign.center,
                                 ),
-                        ] else if (provider.profileCompleted) ...[
-                          // All Done state
-                          const SizedBox(height: 16),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 56,
-                            child: ElevatedButton(
-                              onPressed: () => widget.goNext(),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: Colors.black,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-                                elevation: 0,
-                              ),
-                              child: Text(
-                                context.l10n.allDone,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                  fontFamily: 'Manrope',
-                                ),
-                              ),
-                            ),
-                          ),
-                        ] else if (provider.uploadingProfile) ...[
-                          // Uploading state
-                          const SizedBox(height: 16),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const SizedBox(
-                                height: 24,
-                                width: 24,
-                                child: Center(
-                                  child: CircularProgressIndicator(
-                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Text(
-                                _getLoadingText(context, provider.loadingState),
-                                style: const TextStyle(color: Colors.white, fontSize: 16, fontFamily: 'Manrope'),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                        ] else ...[
-                          // Recording state - transcript + question + progress
-                          ShaderMask(
-                            shaderCallback: (bounds) {
-                              if (provider.text.split(' ').length < 10) {
-                                return const LinearGradient(colors: [Colors.white, Colors.white]).createShader(bounds);
-                              }
-                              return const LinearGradient(
-                                colors: [Colors.transparent, Colors.white],
-                                stops: [0.0, 0.5],
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                              ).createShader(bounds);
-                            },
-                            blendMode: BlendMode.dstIn,
-                            child: SizedBox(
-                              height: 80,
-                              child: ListView(
-                                controller: _scrollController,
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                children: [
+
+                                const SizedBox(height: 16),
+
+                                // Content area changes based on state
+                                if (!provider.startedRecording) ...[
+                                  // Intro text
                                   Text(
-                                    provider.text,
+                                    'Omi needs to learn your goals and your voice. Answer questions with your voice. You\'ll be able to modify it later.',
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       color: Colors.white.withValues(alpha: 0.6),
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w400,
+                                      fontSize: 16,
                                       height: 1.5,
                                       fontFamily: 'Manrope',
                                     ),
                                   ),
+
+                                  const SizedBox(height: 32),
+
+                                  // Get Started button
+                                  provider.isInitialising
+                                      ? const CircularProgressIndicator(color: Colors.white)
+                                      : SizedBox(
+                                          width: double.infinity,
+                                          height: 56,
+                                          child: ElevatedButton(
+                                            onPressed: () async {
+                                              // Check if user has set primary language, if not, show dialog
+                                              if (!context.read<HomeProvider>().hasSetPrimaryLanguage) {
+                                                await LanguageSelectionDialog.show(context);
+                                              }
+
+                                              await stopAllRecording();
+
+                                              // Initialize speech profile with phone mic as input source
+                                              bool success = await provider.initialise(
+                                                usePhoneMic: true,
+                                                processConversationCallback: () {
+                                                  Provider.of<CaptureProvider>(
+                                                    context,
+                                                    listen: false,
+                                                  ).forceProcessingCurrentConversation();
+                                                },
+                                              );
+
+                                              if (!success) {
+                                                return;
+                                              }
+
+                                              provider.forceCompletionTimer = Timer(
+                                                Duration(seconds: provider.maxDuration),
+                                                () async {
+                                                  provider.finalize();
+                                                },
+                                              );
+
+                                              if (!mounted) return;
+                                              _questionAnimationController.forward();
+                                            },
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.white,
+                                              foregroundColor: Colors.black,
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                                              elevation: 0,
+                                            ),
+                                            child: Text(
+                                              context.l10n.getStarted,
+                                              style: const TextStyle(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.w600,
+                                                fontFamily: 'Manrope',
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                ] else if (provider.profileCompleted) ...[
+                                  // All Done state
+                                  const SizedBox(height: 16),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 56,
+                                    child: ElevatedButton(
+                                      onPressed: () => widget.goNext(),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.white,
+                                        foregroundColor: Colors.black,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                                        elevation: 0,
+                                      ),
+                                      child: Text(
+                                        context.l10n.allDone,
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w600,
+                                          fontFamily: 'Manrope',
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ] else if (provider.uploadingProfile) ...[
+                                  // Uploading state
+                                  const SizedBox(height: 16),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const SizedBox(
+                                        height: 24,
+                                        width: 24,
+                                        child: Center(
+                                          child: CircularProgressIndicator(
+                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Text(
+                                        _getLoadingText(context, provider.loadingState),
+                                        style:
+                                            const TextStyle(color: Colors.white, fontSize: 16, fontFamily: 'Manrope'),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+                                ] else ...[
+                                  // Recording state - transcript + question + progress
+                                  ShaderMask(
+                                    shaderCallback: (bounds) {
+                                      if (provider.text.split(' ').length < 10) {
+                                        return const LinearGradient(colors: [Colors.white, Colors.white])
+                                            .createShader(bounds);
+                                      }
+                                      return const LinearGradient(
+                                        colors: [Colors.transparent, Colors.white],
+                                        stops: [0.0, 0.5],
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                      ).createShader(bounds);
+                                    },
+                                    blendMode: BlendMode.dstIn,
+                                    child: SizedBox(
+                                      height: 80,
+                                      child: ListView(
+                                        controller: _scrollController,
+                                        shrinkWrap: true,
+                                        physics: const NeverScrollableScrollPhysics(),
+                                        children: [
+                                          Text(
+                                            provider.text,
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                              color: Colors.white.withValues(alpha: 0.6),
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w400,
+                                              height: 1.5,
+                                              fontFamily: 'Manrope',
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 8),
+
+                                  // Current question
+                                  FadeTransition(
+                                    opacity: _questionFadeAnimation,
+                                    child: Text(
+                                      provider.currentQuestion,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 24,
+                                        height: 1.3,
+                                        fontFamily: 'Manrope',
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 12),
+
+                                  // Progress bar
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ProgressBarWithPercentage(progressValue: provider.questionProgress),
+                                  ),
+
+                                  const SizedBox(height: 8),
+
+                                  Text(
+                                    context.l10n.keepGoing,
+                                    style: TextStyle(
+                                      color: Colors.grey.shade400,
+                                      fontSize: 14,
+                                      height: 1.3,
+                                      fontFamily: 'Manrope',
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+
+                                  TextButton(
+                                    onPressed: () {
+                                      provider.close();
+                                      widget.onSkip();
+                                    },
+                                    child: Text(
+                                      context.l10n.skipForNow,
+                                      style: const TextStyle(color: Colors.grey, fontSize: 14, fontFamily: 'Manrope'),
+                                    ),
+                                  ),
                                 ],
-                              ),
+                              ],
                             ),
                           ),
-
-                          const SizedBox(height: 8),
-
-                          // Current question
-                          FadeTransition(
-                            opacity: _questionFadeAnimation,
-                            child: Text(
-                              provider.currentQuestion,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 24,
-                                height: 1.3,
-                                fontFamily: 'Manrope',
-                                fontWeight: FontWeight.w600,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-
-                          const SizedBox(height: 12),
-
-                          // Progress bar
-                          SizedBox(
-                            width: double.infinity,
-                            child: ProgressBarWithPercentage(progressValue: provider.questionProgress),
-                          ),
-
-                          const SizedBox(height: 8),
-
-                          Text(
-                            context.l10n.keepGoing,
-                            style: TextStyle(
-                              color: Colors.grey.shade400,
-                              fontSize: 14,
-                              height: 1.3,
-                              fontFamily: 'Manrope',
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-
-                          TextButton(
-                            onPressed: () {
-                              provider.close();
-                              widget.onSkip();
-                            },
-                            child: Text(
-                              context.l10n.skipForNow,
-                              style: const TextStyle(color: Colors.grey, fontSize: 14, fontFamily: 'Manrope'),
-                            ),
-                          ),
-                        ],
+                        ),
                       ],
                     ),
                   ),
-                ),
-              ],
+                );
+              },
             ),
           );
         },

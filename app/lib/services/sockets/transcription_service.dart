@@ -9,7 +9,6 @@ import 'package:omi/backend/schema/transcript_segment.dart';
 import 'package:omi/env/env.dart';
 import 'package:omi/models/custom_stt_config.dart';
 import 'package:omi/models/stt_provider.dart';
-import 'package:omi/services/notifications.dart';
 import 'package:omi/services/sockets/on_device_apple_provider.dart';
 import 'package:omi/services/sockets/on_device_whisper_provider.dart';
 import 'package:omi/services/sockets/pure_socket.dart';
@@ -123,11 +122,22 @@ class TranscriptSegmentSocketService implements IPureSocketListener {
       params += '&vad_gate=enabled';
     }
 
-    String url =
-        Env.apiBaseUrl!.replaceFirst('https://', 'wss://').replaceFirst('http://', 'ws://') + 'v4/listen$params';
+    String url = _buildListenUrl(params);
 
     _socket = PureSocket(url);
     _socket.setListener(this);
+  }
+
+  static String _buildListenUrl(String params) {
+    final configuredBase = Env.liveTranscriptionWsBaseUrl ?? Env.apiBaseUrl!;
+    var base = configuredBase.trim().replaceFirst('https://', 'wss://').replaceFirst('http://', 'ws://');
+    while (base.endsWith('/')) {
+      base = base.substring(0, base.length - 1);
+    }
+    if (!base.endsWith('/v4/listen')) {
+      base = '$base/v4/listen';
+    }
+    return '$base$params';
   }
 
   TranscriptSegmentSocketService.withSocket(

@@ -7,7 +7,7 @@
     "dev": "npm run generate-sw && next dev --turbopack",
     "build": "npm run generate-sw && next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "eslint ."
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.0",

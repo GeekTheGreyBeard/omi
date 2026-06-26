@@ -1,2 +1,10 @@
 # Claude Code local files
 .claude/
+
+# Dependencies and generated output
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+*.backup

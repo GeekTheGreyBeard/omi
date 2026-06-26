@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:internet_connection_checker_plus/internet_connection_checker_plus.dart';
+import 'package:omi/env/env.dart';
 
 class ConnectivityService {
   static final ConnectivityService _instance = ConnectivityService._internal();
@@ -9,13 +11,19 @@ class ConnectivityService {
 
   ConnectivityService._internal();
 
+  @visibleForTesting
+  static Uri apiHealthCheckUri() {
+    final base = Env.apiBaseUrl ?? 'https://omi.splat-i.io/';
+    return Uri.parse(base).resolve('v1/health');
+  }
+
   final InternetConnection _internetConnection = InternetConnection.createInstance(
     useDefaultOptions: false,
     checkInterval: const Duration(seconds: 10),
     customCheckOptions: [
       InternetCheckOption(uri: Uri.parse('https://one.one.one.one'), timeout: const Duration(seconds: 3)),
       InternetCheckOption(
-        uri: Uri.parse('https://api.omi.me/v1/health'),
+        uri: apiHealthCheckUri(),
         timeout: const Duration(seconds: 3),
         responseStatusFn: (response) {
           return response.statusCode < 500;

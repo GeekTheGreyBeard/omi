@@ -93,6 +93,30 @@ class _ConversationCapturingPageState extends State<ConversationCapturingPage> w
     super.dispose();
   }
 
+  String _captureStatusText(
+    BuildContext context,
+    CaptureProvider provider,
+    bool hasPhotos,
+    bool effectivelyMuted,
+  ) {
+    if (effectivelyMuted) {
+      return context.l10n.muted;
+    }
+    if (provider.isTranscriptionOffline) {
+      return context.l10n.offline;
+    }
+    if (provider.isTranscriptionReconnecting) {
+      return context.l10n.transcriptionReconnecting;
+    }
+    if (provider.isTranscriptionConnecting) {
+      return context.l10n.transcriptionConnecting;
+    }
+    if (hasPhotos) {
+      return context.l10n.capturingAudioAndGeneratingTranscript;
+    }
+    return context.l10n.listening;
+  }
+
   int convertDateTimeToSeconds(DateTime dateTime) {
     DateTime now = DateTime.now();
     Duration difference = now.difference(dateTime);
@@ -204,9 +228,12 @@ class _ConversationCapturingPageState extends State<ConversationCapturingPage> w
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
-                      provider.photos.isNotEmpty
-                          ? 'Capturing'
-                          : (effectivelyMuted ? context.l10n.muted : context.l10n.listening),
+                      _captureStatusText(
+                        context,
+                        provider,
+                        provider.photos.isNotEmpty,
+                        effectivelyMuted,
+                      ),
                     ),
                   ),
                 ],
@@ -230,7 +257,13 @@ class _ConversationCapturingPageState extends State<ConversationCapturingPage> w
                                   ? Center(
                                       child: Padding(
                                         padding: const EdgeInsets.only(top: 50.0),
-                                        child: Text(context.l10n.waitingForTranscriptOrPhotos),
+                                        child: Text(
+                                          provider.isTranscriptionOffline ||
+                                                  provider.isTranscriptionReconnecting ||
+                                                  provider.isTranscriptionConnecting
+                                              ? _captureStatusText(context, provider, false, false)
+                                              : context.l10n.waitingForTranscriptOrPhotos,
+                                        ),
                                       ),
                                     )
                                   : provider.photos.isNotEmpty

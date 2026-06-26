@@ -5,16 +5,11 @@ import 'package:omi/env/env.dart';
 /// Must live in a separate test file because Env._instance is late final.
 class _EmptyStagingEnvFields implements EnvFields {
   @override
-  String? get stagingApiUrl => ''; // STAGING_API_URL present but empty
-
-  @override
   String? get openAIAPIKey => null;
   @override
-  String? get mixpanelProjectToken => null;
+  String? get posthogApiKey => null;
   @override
   String? get apiBaseUrl => 'https://api.prod.example.com/';
-  @override
-  String? get growthbookApiKey => null;
   @override
   String? get googleMapsApiKey => null;
   @override
@@ -31,6 +26,8 @@ class _EmptyStagingEnvFields implements EnvFields {
   bool? get useWebAuth => false;
   @override
   bool? get useAuthCustomToken => false;
+  @override
+  String? get stagingApiUrl => '';
 }
 
 void main() {

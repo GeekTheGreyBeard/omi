@@ -1,7 +1,11 @@
 package com.friend.ios
 
 import android.content.Intent
+import android.content.Context
+import android.provider.Settings
 import android.os.Bundle
+import android.os.Build
+import android.telephony.TelephonyManager
 import androidx.annotation.NonNull
 import android.Manifest
 import android.content.pm.PackageManager
@@ -15,6 +19,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.friend.ios/notifyOnKill"
     private val NATIVE_BLE_TRANSCRIPT_CHANNEL = "com.friend.ios/native_ble_transcript"
+    private val DEVICE_IDENTITY_CHANNEL = "com.omi/device_identity"
     private var bleHostApiImpl: BleHostApiImpl? = null
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
@@ -47,6 +52,15 @@ class MainActivity: FlutterActivity() {
             }
         }
 
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DEVICE_IDENTITY_CHANNEL).setMethodCallHandler {
+            call, result ->
+            if (call.method == "getAuthIdentity") {
+                result.success(readAuthIdentity())
+            } else {
+                result.notImplemented()
+            }
+        }
+
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler {
             call, result ->
             if(call.method == "setNotificationOnKillService"){
@@ -63,6 +77,50 @@ class MainActivity: FlutterActivity() {
             }else{
                 result.notImplemented()
             }
+        }
+    }
+
+    private fun readAuthIdentity(): Map<String, String> {
+        val telephonyManager = getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+        val phoneNumber = readPhoneNumber(telephonyManager)
+        val imei = readImei(telephonyManager)
+        if (!imei.isNullOrBlank()) {
+            return mapOf(
+                "phoneNumber" to phoneNumber.orEmpty(),
+                "deviceIdentifier" to imei,
+                "deviceIdentifierType" to "imei"
+            )
+        }
+
+        val androidId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID).orEmpty()
+        return mapOf(
+            "phoneNumber" to phoneNumber.orEmpty(),
+            "deviceIdentifier" to androidId,
+            "deviceIdentifierType" to "android_id"
+        )
+    }
+
+    private fun readPhoneNumber(telephonyManager: TelephonyManager): String? {
+        return try {
+            val hasReadPhoneNumbers = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_NUMBERS) == PackageManager.PERMISSION_GRANTED
+            } else {
+                false
+            }
+            val hasReadPhoneState = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
+            if (hasReadPhoneNumbers || hasReadPhoneState) telephonyManager.line1Number else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun readImei(telephonyManager: TelephonyManager): String? {
+        return try {
+            val hasReadPhoneState = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
+            if (!hasReadPhoneState) return null
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) telephonyManager.imei else telephonyManager.deviceId
+        } catch (_: Exception) {
+            null
         }
     }
 

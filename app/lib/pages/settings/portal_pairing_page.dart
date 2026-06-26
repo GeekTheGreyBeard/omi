@@ -11,9 +11,11 @@ class PortalPairingPage extends StatefulWidget {
 }
 
 class _PortalPairingPageState extends State<PortalPairingPage> {
-  final _codeController = TextEditingController();
   OmiAuthDeviceIdentity? _identity;
+  PortalAccessStatus? _accessStatus;
+  List<PortalLoginRequest> _requests = const [];
   bool _loadingIdentity = true;
+  bool _loadingRequests = false;
   bool _submitting = false;
   String? _message;
   bool _approved = false;
@@ -24,12 +26,6 @@ class _PortalPairingPageState extends State<PortalPairingPage> {
     _loadIdentity();
   }
 
-  @override
-  void dispose() {
-    _codeController.dispose();
-    super.dispose();
-  }
-
   Future<void> _loadIdentity() async {
     setState(() {
       _loadingIdentity = true;
@@ -38,13 +34,19 @@ class _PortalPairingPageState extends State<PortalPairingPage> {
 
     try {
       final identity = await AuthService.instance.getOmiAuthDeviceIdentity();
+      final accessStatus =
+          identity.isComplete ? await AuthService.instance.getPortalAccessStatus(identity: identity) : null;
       if (!mounted) return;
       setState(() {
         _identity = identity;
+        _accessStatus = accessStatus;
         if (!identity.isComplete) {
           _message = 'This device cannot be used as an authenticator yet. Grant phone permission and try again.';
         }
       });
+      if (identity.isComplete) {
+        await _loadRequests(identity);
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -60,15 +62,34 @@ class _PortalPairingPageState extends State<PortalPairingPage> {
     }
   }
 
-  Future<void> _approve() async {
-    final identity = _identity;
-    if (identity == null || !identity.isComplete || _codeController.text.trim().isEmpty) {
-      HapticFeedback.selectionClick();
+  Future<void> _loadRequests([OmiAuthDeviceIdentity? knownIdentity]) async {
+    final identity = knownIdentity ?? _identity;
+    if (identity == null || !identity.isComplete) return;
+
+    setState(() {
+      _loadingRequests = true;
+    });
+
+    try {
+      final requests = await AuthService.instance.getPendingPortalLoginRequests(identity: identity);
+      final accessStatus = await AuthService.instance.getPortalAccessStatus(identity: identity);
+      if (!mounted) return;
       setState(() {
-        _message = 'Enter the portal code and confirm this device identity is available.';
+        _requests = requests;
+        _accessStatus = accessStatus;
       });
-      return;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loadingRequests = false;
+        });
+      }
     }
+  }
+
+  Future<void> _decideRequest(PortalLoginRequest request, bool approve) async {
+    final identity = _identity;
+    if (identity == null || !identity.isComplete) return;
 
     setState(() {
       _submitting = true;
@@ -76,20 +97,47 @@ class _PortalPairingPageState extends State<PortalPairingPage> {
       _approved = false;
     });
 
-    final approved = await AuthService.instance.approvePortalPairingCode(
-      identity: identity,
-      pairingCode: _codeController.text,
-    );
+    final completed = approve
+        ? await AuthService.instance.approvePortalPairingCode(identity: identity, pairingCode: request.id)
+        : await AuthService.instance.declinePortalPairingCode(identity: identity, pairingCode: request.id);
 
     if (!mounted) return;
     HapticFeedback.mediumImpact();
     setState(() {
       _submitting = false;
-      _approved = approved;
-      _message = approved
-          ? 'Portal login approved. You can return to the browser.'
-          : 'That code could not be approved. Generate a fresh code in the portal and try again.';
+      _approved = approve && completed;
+      _message = completed
+          ? approve
+              ? 'Portal login approved. You can return to the browser.'
+              : 'Portal login declined.'
+          : 'That portal request could not be updated. Refresh and try again.';
     });
+    await _loadRequests(identity);
+  }
+
+  Future<void> _setPortalLock(bool locked) async {
+    final identity = _identity;
+    if (identity == null || !identity.isComplete) return;
+
+    setState(() {
+      _submitting = true;
+      _message = null;
+      _approved = false;
+    });
+
+    final status = await AuthService.instance.setPortalAccessLocked(identity: identity, locked: locked);
+    if (!mounted) return;
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _submitting = false;
+      _accessStatus = status ?? _accessStatus;
+      _message = status == null
+          ? 'Portal access could not be updated.'
+          : locked
+              ? 'Portal access locked. Unlock it here before using the web portal again.'
+              : 'Portal access unlocked.';
+    });
+    await _loadRequests(identity);
   }
 
   @override
@@ -106,54 +154,20 @@ class _PortalPairingPageState extends State<PortalPairingPage> {
           padding: const EdgeInsets.all(20),
           children: [
             const Text(
-              'Approve portal login',
+              'Portal login requests',
               style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 10),
             Text(
-              'Copy this phone and device identity into the Omi web portal, then enter the pairing code shown there. Only this device can approve that browser session.',
+              'Portal login requests sent to this phone appear here. Approve only requests you recognize.',
               style: TextStyle(color: Colors.white.withValues(alpha: 0.68), fontSize: 15, height: 1.45),
             ),
             const SizedBox(height: 24),
             _buildDevicePanel(),
             const SizedBox(height: 20),
-            TextField(
-              controller: _codeController,
-              keyboardType: TextInputType.text,
-              textCapitalization: TextCapitalization.characters,
-              textInputAction: TextInputAction.done,
-              style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w600),
-              decoration: InputDecoration(
-                labelText: 'Portal code',
-                labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.62)),
-                hintText: 'ABCD-2345',
-                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.28)),
-                filled: true,
-                fillColor: const Color(0xFF1C1C1E),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
-              ),
-              onSubmitted: (_) => _approve(),
-            ),
-            const SizedBox(height: 18),
-            SizedBox(
-              height: 56,
-              child: ElevatedButton(
-                onPressed: _submitting || _loadingIdentity ? null : _approve,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: Colors.black,
-                  disabledBackgroundColor: Colors.white.withValues(alpha: 0.42),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-                ),
-                child: _submitting
-                    ? const SizedBox(
-                        height: 22,
-                        width: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
-                      )
-                    : const Text('Approve login', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-              ),
-            ),
+            _buildPortalAccessPanel(),
+            const SizedBox(height: 20),
+            _buildRequestPanel(),
             if (_message != null) ...[
               const SizedBox(height: 18),
               Container(
@@ -202,6 +216,155 @@ class _PortalPairingPageState extends State<PortalPairingPage> {
           SelectableText(
             identity.phoneNumber,
             style: TextStyle(color: Colors.white.withValues(alpha: 0.72), fontSize: 14),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRequestPanel() {
+    final identity = _identity;
+    if (identity == null || !identity.isComplete) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1C1E),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text('Pending requests',
+                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+              ),
+              TextButton(
+                onPressed: _loadingRequests ? null : () => _loadRequests(),
+                child: _loadingRequests
+                    ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('Refresh'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (_requests.isEmpty)
+            Text('No pending portal login requests.',
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.62), fontSize: 14))
+          else
+            ..._requests.map(_buildRequestRow),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPortalAccessPanel() {
+    final identity = _identity;
+    if (identity == null || !identity.isComplete) {
+      return const SizedBox.shrink();
+    }
+
+    final locked = _accessStatus?.locked ?? false;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: locked ? const Color(0xFF2A1717) : const Color(0xFF1C1C1E),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: locked ? Colors.red.withValues(alpha: 0.45) : Colors.white.withValues(alpha: 0.10)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  locked ? 'Portal access locked' : 'Portal access enabled',
+                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  locked
+                      ? 'Unlock from this app before any web login or registration can continue.'
+                      : 'Lock this if a portal login appears that you did not initiate.',
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.62), fontSize: 13, height: 1.35),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Switch.adaptive(
+            value: !locked,
+            onChanged: _submitting ? null : (enabled) => _setPortalLock(!enabled),
+            activeThumbColor: Colors.green,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRequestRow(PortalLoginRequest request) {
+    final expiresText = request.expiresAt == null
+        ? 'Expires soon'
+        : 'Expires ${request.expiresAt!.toLocal().toIso8601String().substring(11, 16)}';
+
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.black,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(request.code, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(expiresText, style: TextStyle(color: Colors.white.withValues(alpha: 0.56), fontSize: 13)),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              IconButton(
+                onPressed: _submitting
+                    ? null
+                    : () async {
+                        await _decideRequest(request, false);
+                        await _setPortalLock(true);
+                      },
+                tooltip: 'Decline and lock portal access',
+                icon: const Icon(Icons.lock, color: Colors.redAccent),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _submitting ? null : () => _decideRequest(request, false),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: BorderSide(color: Colors.white.withValues(alpha: 0.18)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  ),
+                  child: const Text('Decline'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _submitting ? null : () => _decideRequest(request, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  ),
+                  child: const Text('Allow'),
+                ),
+              ),
+            ],
           ),
         ],
       ),

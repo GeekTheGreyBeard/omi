@@ -7,6 +7,7 @@ import 'package:awesome_notifications/awesome_notifications.dart';
 
 import 'package:omi/app_globals.dart';
 import 'package:omi/pages/home/page.dart';
+import 'package:omi/pages/settings/portal_pairing_page.dart';
 import 'package:omi/utils/l10n_extensions.dart';
 import 'package:omi/utils/logger.dart';
 
@@ -71,6 +72,13 @@ class NotificationUtil {
     }
     if (navigateTo == null) {
       Logger.debug("Navigate To is null");
+      return;
+    }
+
+    if (navigateTo == 'portal_pairing') {
+      globalNavigatorKey.currentState?.push(
+        MaterialPageRoute(builder: (context) => const PortalPairingPage()),
+      );
       return;
     }
 

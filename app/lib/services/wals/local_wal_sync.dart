@@ -4,7 +4,6 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
-import 'package:meta/meta.dart';
 
 import 'package:omi/backend/preferences.dart';
 import 'package:omi/models/sync_state.dart';
@@ -203,7 +202,7 @@ class LocalWalSyncImpl implements LocalWalSync {
           break;
         }
       }
-      Logger.debug("${low} - ${high} - ${syncedOffset} - ${chunkFrameCount} - ${_framesPerSecond}");
+      Logger.debug("$low - $high - $syncedOffset - $chunkFrameCount - $_framesPerSecond");
 
       Wal wal;
       var walIdx = _wals.indexWhere(
@@ -542,7 +541,10 @@ class LocalWalSyncImpl implements LocalWalSync {
     int filesUploaded = 0;
     final totalFilesToUpload = wals.length;
 
-    var steps = 3;
+    // Keep phone WAL uploads under common proxy multipart limits. Some Omi
+    // offline chunks are already ~75 seconds each, so batching multiple files
+    // can produce a 413 even when every individual WAL is valid.
+    var steps = 1;
     for (var i = wals.length - 1; i >= 0; i -= steps) {
       if (_isCancelled) {
         Logger.debug("LocalWalSync: Upload cancelled");

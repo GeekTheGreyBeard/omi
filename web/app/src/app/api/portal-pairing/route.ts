@@ -12,9 +12,6 @@ export async function POST(request: NextRequest) {
         user_agent: request.headers.get('user-agent') || '',
         phoneNumber: requestBody.phoneNumber || requestBody.phone_number || '',
         phone_number: requestBody.phoneNumber || requestBody.phone_number || '',
-        deviceIdentifier: requestBody.deviceIdentifier || requestBody.device_identifier || '',
-        device_identifier: requestBody.deviceIdentifier || requestBody.device_identifier || '',
-        deviceIdentifierType: requestBody.deviceIdentifierType || requestBody.device_identifier_type || 'device',
       }),
     });
 

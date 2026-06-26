@@ -4,14 +4,12 @@ import 'dart:io';
 
 import 'package:omi/utils/platform/platform_manager.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:collection/collection.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_provider_utilities/flutter_provider_utilities.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'package:omi/backend/http/api/conversations.dart';
@@ -27,7 +25,6 @@ import 'package:omi/backend/schema/structured.dart';
 import 'package:omi/backend/schema/transcript_segment.dart';
 import 'package:omi/env/env.dart';
 import 'package:omi/models/custom_stt_config.dart';
-import 'package:omi/models/stt_provider.dart';
 import 'package:omi/providers/conversation_provider.dart';
 import 'package:omi/providers/message_provider.dart';
 import 'package:omi/providers/people_provider.dart';
@@ -244,29 +241,29 @@ class CaptureProvider extends ChangeNotifier
     _activeSource = PhoneMicSource();
     _phoneMicWalActive = true;
     await ServiceManager.instance().mic.start(
-      onByteReceived: (bytes) {
-        final frames = _activeSource?.processBytes(bytes) ?? [];
-        for (final frame in frames) {
-          _wal.getSyncs().phone.onFrameCaptured(frame);
-          if (_socket?.state == SocketServiceState.connected) {
-            _socket?.send(frame.payload);
-            _wal.getSyncs().phone.markFrameSynced(frame.syncKey);
-          }
-        }
-      },
-      onRecording: () {
-        updateRecordingState(RecordingState.record);
-      },
-      onStop: () {
-        if (!_callActive) {
-          updateRecordingState(RecordingState.stop);
-        }
-      },
-      onInitializing: () {
-        updateRecordingState(RecordingState.initialising);
-      },
-      onStalled: _onMicStalled,
-    );
+          onByteReceived: (bytes) {
+            final frames = _activeSource?.processBytes(bytes) ?? [];
+            for (final frame in frames) {
+              _wal.getSyncs().phone.onFrameCaptured(frame);
+              if (_socket?.state == SocketServiceState.connected) {
+                _socket?.send(frame.payload);
+                _wal.getSyncs().phone.markFrameSynced(frame.syncKey);
+              }
+            }
+          },
+          onRecording: () {
+            updateRecordingState(RecordingState.record);
+          },
+          onStop: () {
+            if (!_callActive) {
+              updateRecordingState(RecordingState.stop);
+            }
+          },
+          onInitializing: () {
+            updateRecordingState(RecordingState.initialising);
+          },
+          onStalled: _onMicStalled,
+        );
   }
 
   void _onMicStalled() {
@@ -416,8 +413,36 @@ class CaptureProvider extends ChangeNotifier
   }
 
   bool _transcriptServiceReady = false;
+  int _transcriptionReconnectAttempt = 0;
+  int? _lastTranscriptionCloseCode;
+  Object? _lastTranscriptionError;
+  DateTime? _lastTranscriptSegmentReceivedAt;
 
   bool get transcriptServiceReady => _transcriptServiceReady && _isConnected;
+  int get transcriptionReconnectAttempt => _transcriptionReconnectAttempt;
+  int? get lastTranscriptionCloseCode => _lastTranscriptionCloseCode;
+  Object? get lastTranscriptionError => _lastTranscriptionError;
+  DateTime? get lastTranscriptSegmentReceivedAt => _lastTranscriptSegmentReceivedAt;
+
+  bool get _isCaptureSessionActive =>
+      recordingState == RecordingState.record ||
+      recordingState == RecordingState.systemAudioRecord ||
+      recordingState == RecordingState.deviceRecord ||
+      recordingState == RecordingState.initialising ||
+      recordingState == RecordingState.interrupted ||
+      recordingState == RecordingState.pause ||
+      _recordingDevice != null;
+
+  bool get isTranscriptionOffline => _isCaptureSessionActive && !_isConnected;
+
+  bool get isTranscriptionConnecting =>
+      _isCaptureSessionActive && _isConnected && !_transcriptServiceReady && _socket == null;
+
+  bool get isTranscriptionReconnecting =>
+      _isCaptureSessionActive &&
+      _isConnected &&
+      !_transcriptServiceReady &&
+      (_socketReconnectPending || _transcriptionReconnectAttempt > 0 || _socket != null);
 
   // having a connected device or using the phone's mic for recording.
   // Includes `interrupted` so the keep-alive/reconnect path keeps running
@@ -531,9 +556,8 @@ class CaptureProvider extends ChangeNotifier
     Logger.debug('Initiating WebSocket with: codec=$codec, sampleRate=$sampleRate, channels=$channels, isPcm=$isPcm');
 
     // Get language and custom STT config
-    String language = SharedPreferencesUtil().hasSetPrimaryLanguage
-        ? SharedPreferencesUtil().userPrimaryLanguage
-        : "multi";
+    String language =
+        SharedPreferencesUtil().hasSetPrimaryLanguage ? SharedPreferencesUtil().userPrimaryLanguage : "multi";
     final customSttConfig = SharedPreferencesUtil().customSttConfig;
 
     Logger.debug('Custom STT enabled: ${customSttConfig.isEnabled}, provider: ${customSttConfig.provider}');
@@ -547,13 +571,13 @@ class CaptureProvider extends ChangeNotifier
 
     // Connect to the transcript socket
     _socket = await ServiceManager.instance().socket.conversation(
-      codec: codec,
-      sampleRate: sampleRate,
-      language: language,
-      force: force,
-      source: source,
-      customSttConfig: effectiveConfig,
-    );
+          codec: codec,
+          sampleRate: sampleRate,
+          language: language,
+          force: force,
+          source: source,
+          customSttConfig: effectiveConfig,
+        );
     if (_socket == null) {
       _startKeepAliveServices();
       Logger.debug("Can not create new conversation socket");
@@ -661,24 +685,20 @@ class CaptureProvider extends ChangeNotifier
             _isProcessingButtonEvent = true;
             if (_isPaused) {
               PlatformManager.instance.analytics.omiDoubleTap(feature: 'unmute');
-              resumeDeviceRecording()
-                  .then((_) {
-                    _isProcessingButtonEvent = false;
-                  })
-                  .catchError((e) {
-                    Logger.debug("Error resuming device recording: $e");
-                    _isProcessingButtonEvent = false;
-                  });
+              resumeDeviceRecording().then((_) {
+                _isProcessingButtonEvent = false;
+              }).catchError((e) {
+                Logger.debug("Error resuming device recording: $e");
+                _isProcessingButtonEvent = false;
+              });
             } else {
               PlatformManager.instance.analytics.omiDoubleTap(feature: 'mute');
-              pauseDeviceRecording()
-                  .then((_) {
-                    _isProcessingButtonEvent = false;
-                  })
-                  .catchError((e) {
-                    Logger.debug("Error pausing device recording: $e");
-                    _isProcessingButtonEvent = false;
-                  });
+              pauseDeviceRecording().then((_) {
+                _isProcessingButtonEvent = false;
+              }).catchError((e) {
+                Logger.debug("Error pausing device recording: $e");
+                _isProcessingButtonEvent = false;
+              });
             }
           } else if (doubleTapAction == 2) {
             // Star ongoing conversation (doesn't end it)
@@ -771,8 +791,8 @@ class CaptureProvider extends ChangeNotifier
         }
 
         // Local storage syncs
-        var checkWalSupported =
-            (_recordingDevice?.type == DeviceType.omi || _recordingDevice?.type == DeviceType.openglass) &&
+        var checkWalSupported = (_recordingDevice?.type == DeviceType.omi ||
+                _recordingDevice?.type == DeviceType.openglass) &&
             codec.isOpusSupported() &&
             (_socket?.state != SocketServiceState.connected || SharedPreferencesUtil().unlimitedLocalStorageEnabled);
         if (checkWalSupported != _isWalSupported) {
@@ -879,9 +899,8 @@ class CaptureProvider extends ChangeNotifier
       return;
     }
     BleAudioCodec codec = await _getAudioCodec(_recordingDevice!.id);
-    var language = SharedPreferencesUtil().hasSetPrimaryLanguage
-        ? SharedPreferencesUtil().userPrimaryLanguage
-        : "multi";
+    var language =
+        SharedPreferencesUtil().hasSetPrimaryLanguage ? SharedPreferencesUtil().userPrimaryLanguage : "multi";
     final customSttConfig = SharedPreferencesUtil().customSttConfig;
     final sttConfigId = customSttConfig.sttConfigId;
 
@@ -942,7 +961,7 @@ class CaptureProvider extends ChangeNotifier
         'codec': codec.toString(),
         'sampleRate': mapCodecToSampleRate(codec),
         'source': _getConversationSourceFromDevice(),
-        'apiBaseUrl': Env.apiBaseUrl ?? 'https://api.omiapi.com/',
+        'apiBaseUrl': Env.apiBaseUrl ?? 'https://omi.splat-i.io/',
         'serviceUuid': audioTarget.key,
         'characteristicUuid': audioTarget.value,
         'deviceType': device.type.name,
@@ -1176,32 +1195,32 @@ class CaptureProvider extends ChangeNotifier
 
     // record
     await ServiceManager.instance().mic.start(
-      onByteReceived: (bytes) {
-        // Process through AudioSource for frame splitting and sync key generation
-        final frames = _activeSource?.processBytes(bytes) ?? [];
+          onByteReceived: (bytes) {
+            // Process through AudioSource for frame splitting and sync key generation
+            final frames = _activeSource?.processBytes(bytes) ?? [];
 
-        for (final frame in frames) {
-          _wal.getSyncs().phone.onFrameCaptured(frame);
+            for (final frame in frames) {
+              _wal.getSyncs().phone.onFrameCaptured(frame);
 
-          if (_socket?.state == SocketServiceState.connected) {
-            _socket?.send(frame.payload);
-            _wal.getSyncs().phone.markFrameSynced(frame.syncKey);
-          }
-        }
-      },
-      onRecording: () {
-        updateRecordingState(RecordingState.record);
-      },
-      onStop: () {
-        if (!_callActive) {
-          updateRecordingState(RecordingState.stop);
-        }
-      },
-      onInitializing: () {
-        updateRecordingState(RecordingState.initialising);
-      },
-      onStalled: _onMicStalled,
-    );
+              if (_socket?.state == SocketServiceState.connected) {
+                _socket?.send(frame.payload);
+                _wal.getSyncs().phone.markFrameSynced(frame.syncKey);
+              }
+            }
+          },
+          onRecording: () {
+            updateRecordingState(RecordingState.record);
+          },
+          onStop: () {
+            if (!_callActive) {
+              updateRecordingState(RecordingState.stop);
+            }
+          },
+          onInitializing: () {
+            updateRecordingState(RecordingState.initialising);
+          },
+          onStalled: _onMicStalled,
+        );
   }
 
   stopStreamRecording() async {
@@ -1253,6 +1272,11 @@ class CaptureProvider extends ChangeNotifier
   void onClosed([int? closeCode]) {
     _transcriptionServiceStatuses = [];
     _transcriptServiceReady = false;
+    _lastTranscriptionCloseCode = closeCode;
+    _lastTranscriptionError = null;
+    if (_isCaptureSessionActive) {
+      _transcriptionReconnectAttempt++;
+    }
 
     if (closeCode == 4002) {
       usageProvider?.markAsOutOfCreditsAndRefresh();
@@ -1326,6 +1350,10 @@ class CaptureProvider extends ChangeNotifier
   void onError(Object err) {
     _transcriptionServiceStatuses = [];
     _transcriptServiceReady = false;
+    _lastTranscriptionError = err;
+    if (_isCaptureSessionActive) {
+      _transcriptionReconnectAttempt++;
+    }
 
     notifyListeners();
     _startKeepAliveServices();
@@ -1334,6 +1362,9 @@ class CaptureProvider extends ChangeNotifier
   @override
   void onConnected() {
     _transcriptServiceReady = true;
+    _transcriptionReconnectAttempt = 0;
+    _lastTranscriptionCloseCode = null;
+    _lastTranscriptionError = null;
     // Restart mic on reconnect if interrupted (skip during active call).
     if (recordingState == RecordingState.interrupted && !_callActive) {
       if (_activeSource is PhoneMicSource) {
@@ -1936,6 +1967,7 @@ class CaptureProvider extends ChangeNotifier
 
   Future<void> _processNewSegmentReceived(List<TranscriptSegment> newSegments) async {
     if (newSegments.isEmpty) return;
+    _lastTranscriptSegmentReceivedAt = DateTime.now();
 
     if (segments.isEmpty && !_isLoadingInProgressConversation) {
       _isLoadingInProgressConversation = true;

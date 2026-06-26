@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 
-import 'package:omi/backend/http/shared.dart';
 import 'package:omi/services/connectivity_service.dart';
 import 'package:omi/services/devices.dart';
 import 'package:omi/services/sockets.dart';
@@ -334,9 +333,6 @@ class MicRecorderService implements IMicRecorderService {
     _onStop = onStop;
     _onRecording = onRecording;
     _onStalled = onStalled;
-    if (_onRecording != null) {
-      _onRecording!();
-    }
 
     // new record
     await _recorder.openRecorder(isBGService: _isInBG);
@@ -349,6 +345,9 @@ class MicRecorderService implements IMicRecorderService {
       sampleRate: 16000,
       bufferSize: 8192,
     );
+    if (_onRecording != null) {
+      _onRecording!();
+    }
     _lastByteAt = DateTime.now();
     _stallReported = false;
     _controller.stream.listen((buffer) {
