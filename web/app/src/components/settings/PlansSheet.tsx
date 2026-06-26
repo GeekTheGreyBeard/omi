@@ -46,25 +46,7 @@ export function PlansSheet({
   const isUnlimited = subscription?.is_unlimited;
   const isCanceling_ = subscription?.cancel_at_period_end;
 
-  useEffect(() => {
-    if (open) {
-      // Use cached plans if available, otherwise fetch
-      if (cachedPlans && cachedPlans.length > 0) {
-        setPricingOptions(cachedPlans);
-        const activePlan = cachedPlans.find((p) => p.is_active);
-        if (activePlan) {
-          setSelectedPriceId(activePlan.id);
-        } else {
-          setSelectedPriceId(cachedPlans[0].id);
-        }
-        setIsLoadingPlans(false);
-      } else {
-        loadPlans();
-      }
-    }
-  }, [open, cachedPlans]);
-
-  const loadPlans = async () => {
+  async function loadPlans() {
     setIsLoadingPlans(true);
     setError(null);
     try {
@@ -84,7 +66,25 @@ export function PlansSheet({
     } finally {
       setIsLoadingPlans(false);
     }
-  };
+  }
+
+  useEffect(() => {
+    if (open) {
+      // Use cached plans if available, otherwise fetch
+      if (cachedPlans && cachedPlans.length > 0) {
+        setPricingOptions(cachedPlans);
+        const activePlan = cachedPlans.find((p) => p.is_active);
+        if (activePlan) {
+          setSelectedPriceId(activePlan.id);
+        } else {
+          setSelectedPriceId(cachedPlans[0].id);
+        }
+        setIsLoadingPlans(false);
+      } else {
+        loadPlans();
+      }
+    }
+  }, [open, cachedPlans]);
 
   const handleSubscribe = async () => {
     if (!selectedPriceId) return;

@@ -43,7 +43,6 @@ export function RecordingController() {
     channelRef.current = channel;
 
     // Handle messages from pop-out windows
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     channel.onmessage = (event: MessageEvent<any>) => {
       const message = event.data;
 

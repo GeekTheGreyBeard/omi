@@ -72,7 +72,7 @@ export function TaskListView({
   if (isEmpty && searchQuery) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
-        <p className="text-sm text-text-tertiary">No tasks match "{searchQuery}"</p>
+        <p className="text-sm text-text-tertiary">No tasks match &quot;{searchQuery}&quot;</p>
       </div>
     );
   }

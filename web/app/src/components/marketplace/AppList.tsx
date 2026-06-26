@@ -9,6 +9,7 @@ import { ScrollableCategoryNav } from './ScrollableCategoryNav';
 import { SearchBar } from './SearchBar';
 import { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
 import { DeveloperBanner } from './DeveloperBanner';
+import Link from 'next/link';
 
 interface MarketplaceHeaderProps {
   minimized: boolean;
@@ -254,13 +255,13 @@ export default function AppList({ initialPlugins, initialStats }: AppListProps) 
                       totalApps={sortedCategories['productivity-and-organization'].length}
                     />
                     {sortedCategories['productivity-and-organization'].length > 4 && (
-                      <a
+                      <Link
                         href="/apps/category/productivity-and-organization"
                         className="flex items-center gap-1 text-sm font-medium text-[#6C8EEF] hover:underline"
                       >
                         See all
                         <ChevronRight className="h-4 w-4" />
-                      </a>
+                      </Link>
                     )}
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-3 sm:mt-6 sm:gap-4 lg:grid-cols-4">
@@ -283,13 +284,13 @@ export default function AppList({ initialPlugins, initialStats }: AppListProps) 
                       Integration Apps
                     </h3>
                     {totalIntegrationApps > 9 && (
-                      <a
+                      <Link
                         href="/apps/category/integration"
                         className="flex items-center gap-1 text-sm font-medium text-[#6C8EEF] hover:underline"
                       >
                         See all
                         <ChevronRight className="h-4 w-4" />
-                      </a>
+                      </Link>
                     )}
                   </div>
                   <div className="mt-4 grid grid-cols-1 gap-y-2 sm:mt-6 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
@@ -320,13 +321,13 @@ export default function AppList({ initialPlugins, initialStats }: AppListProps) 
                     <div className="flex items-center justify-between">
                       <CategoryHeader category={category} totalApps={plugins.length} />
                       {plugins.length > 9 && (
-                        <a
+                        <Link
                           href={`/apps/category/${category}`}
                           className="flex items-center gap-1 text-sm font-medium text-[#6C8EEF] hover:underline"
                         >
                           See all
                           <ChevronRight className="h-4 w-4" />
-                        </a>
+                        </Link>
                       )}
                     </div>
                     <div className="mt-4 grid grid-cols-1 gap-y-2 sm:mt-6 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">

@@ -110,7 +110,6 @@ export const ConversationCard = memo(function ConversationCard({
       tabIndex={0}
       role="button"
       aria-label={`Conversation: ${conversation.structured.title}`}
-      aria-selected={isSelected || isChecked}
     >
       {/* Top row: Time + Star */}
       <div className="flex items-center justify-between mb-1.5">

@@ -59,7 +59,6 @@ export function RecapCard({
       tabIndex={0}
       role="button"
       aria-label={`Recap: ${recap.headline}`}
-      aria-selected={isSelected}
     >
       {/* Top row: Date */}
       <div className="flex items-center justify-between mb-1.5">

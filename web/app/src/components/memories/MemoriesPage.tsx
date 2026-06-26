@@ -224,7 +224,6 @@ export function MemoriesPage() {
   }, [deferredMemories, searchQuery, selectedTag, sortBy]);
 
   // Handle node selection from graph
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleNodeSelect = useCallback((_nodeId: string, _memoryIds: string[]) => {
     // Node selection handler - can be extended for future features
   }, []);

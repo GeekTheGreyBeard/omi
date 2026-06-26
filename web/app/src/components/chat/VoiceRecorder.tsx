@@ -47,7 +47,25 @@ export function InlineVoiceRecorder({ onTranscript, disabled }: InlineVoiceRecor
     };
   }, []);
 
-  const startRecording = async () => {
+  const processAudio = useCallback(async (audioBlob: Blob) => {
+    setState('transcribing');
+
+    try {
+      const transcript = await transcribeVoiceMessage(audioBlob);
+      if (transcript) {
+        onTranscript(transcript);
+      } else {
+        setError('No speech detected');
+      }
+    } catch (err) {
+      console.error('Transcription failed:', err);
+      setError('Failed to transcribe');
+    } finally {
+      setState('idle');
+    }
+  }, [onTranscript]);
+
+  const startRecording = useCallback(async () => {
     setError(null);
 
     try {
@@ -93,9 +111,9 @@ export function InlineVoiceRecorder({ onTranscript, disabled }: InlineVoiceRecor
         setError('Failed to start recording');
       }
     }
-  };
+  }, [processAudio]);
 
-  const stopRecording = () => {
+  const stopRecording = useCallback(() => {
     if (durationIntervalRef.current) {
       clearInterval(durationIntervalRef.current);
       durationIntervalRef.current = null;
@@ -104,25 +122,7 @@ export function InlineVoiceRecorder({ onTranscript, disabled }: InlineVoiceRecor
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.stop();
     }
-  };
-
-  const processAudio = async (audioBlob: Blob) => {
-    setState('transcribing');
-
-    try {
-      const transcript = await transcribeVoiceMessage(audioBlob);
-      if (transcript) {
-        onTranscript(transcript);
-      } else {
-        setError('No speech detected');
-      }
-    } catch (err) {
-      console.error('Transcription failed:', err);
-      setError('Failed to transcribe');
-    } finally {
-      setState('idle');
-    }
-  };
+  }, []);
 
   const handleClick = useCallback(() => {
     if (state === 'idle') {
@@ -131,15 +131,13 @@ export function InlineVoiceRecorder({ onTranscript, disabled }: InlineVoiceRecor
       stopRecording();
     }
     // Do nothing if transcribing
-  }, [state]);
+  }, [startRecording, state, stopRecording]);
 
   const formatDuration = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
-
-  if (!isSupported) return null;
 
   // Clear error after 3 seconds
   useEffect(() => {
@@ -148,6 +146,8 @@ export function InlineVoiceRecorder({ onTranscript, disabled }: InlineVoiceRecor
       return () => clearTimeout(timer);
     }
   }, [error]);
+
+  if (!isSupported) return null;
 
   return (
     <div className="flex items-center gap-2">
