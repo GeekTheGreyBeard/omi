@@ -32,6 +32,13 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0
 export const auth = getAuth(app);
 
 const PORTAL_TOKEN_KEY = 'splatiPortalToken';
+export const PORTAL_TOKEN_CHANGED_EVENT = 'portal-token-changed';
+
+const notifyPortalTokenChanged = (): void => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(PORTAL_TOKEN_CHANGED_EVENT));
+  }
+};
 
 export const getPortalToken = (): string | null => {
   if (typeof window === 'undefined') return null;
@@ -40,11 +47,13 @@ export const getPortalToken = (): string | null => {
 
 export const setPortalToken = (token: string): void => {
   window.localStorage.setItem(PORTAL_TOKEN_KEY, token);
+  notifyPortalTokenChanged();
 };
 
 export const clearPortalToken = (): void => {
   if (typeof window !== 'undefined') {
     window.localStorage.removeItem(PORTAL_TOKEN_KEY);
+    notifyPortalTokenChanged();
   }
 };
 

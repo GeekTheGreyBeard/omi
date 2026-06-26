@@ -7,6 +7,7 @@ import {
   signOutUser,
   getIdToken,
   getPortalToken,
+  PORTAL_TOKEN_CHANGED_EVENT,
 } from '@/lib/firebase';
 import { MixpanelManager } from '@/lib/analytics/mixpanel';
 
@@ -32,6 +33,21 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const createPortalUser = (): PortalUser | null => {
+  return getPortalToken()
+    ? {
+        uid: 'portal-device',
+        displayName: 'Paired Omi device',
+        email: null,
+        photoURL: null,
+      }
+    : null;
+};
+
+const isFirebaseUser = (user: AuthUser | null): user is User => {
+  return !!user && typeof (user as User).getIdToken === 'function';
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,17 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Subscribe to auth state changes
     const unsubscribe = onAuthStateChange((user) => {
-      const portalToken = getPortalToken();
-      const nextUser =
-        user ||
-        (portalToken
-          ? {
-              uid: 'portal-device',
-              displayName: 'Paired Omi device',
-              email: null,
-              photoURL: null,
-            }
-          : null);
+      const nextUser = user || createPortalUser();
 
       setUser(nextUser);
       setLoading(false);
@@ -74,6 +80,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const handlePortalTokenChanged = () => {
+      setUser((authUser) => (isFirebaseUser(authUser) ? authUser : createPortalUser()));
+      setLoading(false);
+    };
+
+    window.addEventListener(PORTAL_TOKEN_CHANGED_EVENT, handlePortalTokenChanged);
+    window.addEventListener('storage', handlePortalTokenChanged);
+
+    return () => {
+      window.removeEventListener(PORTAL_TOKEN_CHANGED_EVENT, handlePortalTokenChanged);
+      window.removeEventListener('storage', handlePortalTokenChanged);
+    };
   }, []);
 
   const handleSignOut = async () => {
