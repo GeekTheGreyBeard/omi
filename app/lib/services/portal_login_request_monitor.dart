@@ -13,7 +13,7 @@ class PortalLoginRequestMonitor with WidgetsBindingObserver {
 
   static final PortalLoginRequestMonitor instance = PortalLoginRequestMonitor._();
 
-  static const _pollInterval = Duration(seconds: 15);
+  static const _pollInterval = Duration(seconds: 5);
   static const _portalNotificationId = 84090;
 
   Timer? _timer;
