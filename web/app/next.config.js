@@ -93,6 +93,20 @@ const nextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      {
+        source: '/apps/:path*',
+        destination: '/login',
+        permanent: false,
+      },
+      {
+        source: '/my-apps/:path*',
+        destination: '/login',
+        permanent: false,
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;

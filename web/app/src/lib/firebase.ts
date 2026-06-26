@@ -1,9 +1,6 @@
 import { initializeApp, getApps } from 'firebase/app';
 import {
   getAuth,
-  GoogleAuthProvider,
-  OAuthProvider,
-  signInWithPopup,
   signOut,
   onAuthStateChanged,
   User,
@@ -34,40 +31,20 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0
 // Initialize Firebase Auth
 export const auth = getAuth(app);
 
-// Google Auth Provider
-const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({
-  prompt: 'select_account',
-});
+const PORTAL_TOKEN_KEY = 'splatiPortalToken';
 
-// Apple Auth Provider
-const appleProvider = new OAuthProvider('apple.com');
-appleProvider.addScope('email');
-appleProvider.addScope('name');
-
-/**
- * Sign in with Google
- */
-export const signInWithGoogle = async (): Promise<User | null> => {
-  try {
-    const result = await signInWithPopup(auth, googleProvider);
-    return result.user;
-  } catch (error) {
-    console.error('Google sign-in error:', error);
-    throw error;
-  }
+export const getPortalToken = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  return window.localStorage.getItem(PORTAL_TOKEN_KEY);
 };
 
-/**
- * Sign in with Apple
- */
-export const signInWithApple = async (): Promise<User | null> => {
-  try {
-    const result = await signInWithPopup(auth, appleProvider);
-    return result.user;
-  } catch (error) {
-    console.error('Apple sign-in error:', error);
-    throw error;
+export const setPortalToken = (token: string): void => {
+  window.localStorage.setItem(PORTAL_TOKEN_KEY, token);
+};
+
+export const clearPortalToken = (): void => {
+  if (typeof window !== 'undefined') {
+    window.localStorage.removeItem(PORTAL_TOKEN_KEY);
   }
 };
 
@@ -76,6 +53,7 @@ export const signInWithApple = async (): Promise<User | null> => {
  */
 export const signOutUser = async (): Promise<void> => {
   try {
+    clearPortalToken();
     await signOut(auth);
   } catch (error) {
     console.error('Sign out error:', error);
@@ -88,6 +66,9 @@ export const signOutUser = async (): Promise<void> => {
  * Always call this fresh before API requests (don't cache)
  */
 export const getIdToken = async (): Promise<string | null> => {
+  const portalToken = getPortalToken();
+  if (portalToken) return portalToken;
+
   const user = auth.currentUser;
   if (!user) return null;
 

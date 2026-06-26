@@ -7,7 +7,7 @@ import {
 import { CompactPluginCard } from '@/components/marketplace/plugin-card/CompactPluginCard';
 import { CategoryBreadcrumb } from '@/components/marketplace/CategoryBreadcrumb';
 import { BreadcrumbJsonLd, SoftwareAppJsonLd } from '@/components/seo/JsonLd';
-import { Calendar, User, FolderOpen, Puzzle, ArrowRight, DollarSign } from 'lucide-react';
+import { Calendar, User, FolderOpen, Puzzle, DollarSign } from 'lucide-react';
 import { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -199,50 +199,6 @@ export default async function PluginDetailPage({ params }: Props) {
                     </div>
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="mt-8">
-                    <Link
-                      href="https://apps.apple.com/us/app/friend-ai-wearable/id6502156163"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group inline-flex items-center justify-center rounded-xl bg-[#6C8EEF] px-6 py-3 text-base font-medium text-white transition-all hover:bg-[#5A7DE8]"
-                    >
-                      <span className="flex items-center">
-                        Try it now
-                        <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-                      </span>
-                    </Link>
-                    <div className="mt-4 flex items-center gap-4">
-                      <a
-                        href="https://apps.apple.com/us/app/friend-ai-wearable/id6502156163"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="transition-transform duration-300 hover:scale-105"
-                      >
-                        <Image
-                          src="/app-store-badge.svg"
-                          alt="Download on the App Store"
-                          className="h-10"
-                          width={120}
-                          height={40}
-                        />
-                      </a>
-                      <a
-                        href="https://play.google.com/store/apps/details?id=com.friend.ios"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="transition-transform duration-300 hover:scale-105"
-                      >
-                        <Image
-                          src="/google-play-badge.png"
-                          alt="Get it on Google Play"
-                          className="h-[60px] w-auto"
-                          width={646}
-                          height={250}
-                        />
-                      </a>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>

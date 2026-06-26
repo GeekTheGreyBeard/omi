@@ -12,8 +12,7 @@ export function MarketplaceHeader() {
     <header className="fixed top-0 left-0 right-0 z-50 h-12 bg-[#0B0F17] border-b border-white/5">
       <div className="container mx-auto h-full px-3 sm:px-6 md:px-8">
         <div className="flex h-full items-center justify-between">
-          {/* Logo - links to main apps page */}
-          <Link href="/apps" className="flex items-center gap-2">
+          <Link href="/login" className="flex items-center gap-2">
             <Image
               src="/omi-white.webp"
               alt="Omi"

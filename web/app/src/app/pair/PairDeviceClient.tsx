@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { setPortalToken } from '@/lib/firebase';
 
 type PairingStatus = 'pending' | 'approved' | 'expired';
 
@@ -83,7 +84,7 @@ export function PairDeviceClient() {
         setPairing(nextPairing);
         const token = nextPairing.portalToken || nextPairing.portal_token;
         if (nextPairing.status === 'approved' && token) {
-          window.localStorage.setItem('splatiPortalToken', token);
+          setPortalToken(token);
           window.setTimeout(() => router.push('/conversations'), 900);
         }
       } catch (err) {
@@ -108,7 +109,7 @@ export function PairDeviceClient() {
             href="/login"
             className="rounded-full border border-white/10 px-4 py-2 text-sm text-text-secondary transition hover:border-white/25 hover:text-white"
           >
-            Other sign in
+            Log in
           </a>
         </header>
 

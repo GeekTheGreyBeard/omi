@@ -3,20 +3,25 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useRef, useCallback } from 'react';
 import { User } from 'firebase/auth';
 import {
-  auth,
   onAuthStateChange,
-  signInWithGoogle,
-  signInWithApple,
   signOutUser,
   getIdToken,
+  getPortalToken,
 } from '@/lib/firebase';
 import { MixpanelManager } from '@/lib/analytics/mixpanel';
 
+type PortalUser = {
+  uid: string;
+  displayName: string | null;
+  email: string | null;
+  photoURL: string | null;
+};
+
+type AuthUser = User | PortalUser;
+
 interface AuthContextType {
-  user: User | null;
+  user: AuthUser | null;
   loading: boolean;
-  signInWithGoogle: () => Promise<void>;
-  signInWithApple: () => Promise<void>;
   signOut: () => Promise<void>;
   getToken: () => Promise<string | null>;
   // Login panel state
@@ -28,10 +33,10 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [isLoginPanelOpen, setIsLoginPanelOpen] = useState(false);
-  const previousUserRef = useRef<User | null>(null);
+  const previousUserRef = useRef<AuthUser | null>(null);
 
   const openLoginPanel = useCallback(() => setIsLoginPanelOpen(true), []);
   const closeLoginPanel = useCallback(() => setIsLoginPanelOpen(false), []);
@@ -42,48 +47,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Subscribe to auth state changes
     const unsubscribe = onAuthStateChange((user) => {
-      setUser(user);
+      const portalToken = getPortalToken();
+      const nextUser =
+        user ||
+        (portalToken
+          ? {
+              uid: 'portal-device',
+              displayName: 'Paired Omi device',
+              email: null,
+              photoURL: null,
+            }
+          : null);
+
+      setUser(nextUser);
       setLoading(false);
 
       // Identify user with Mixpanel when authenticated
-      if (user && !previousUserRef.current) {
-        MixpanelManager.identify(user.uid, {
-          name: user.displayName || undefined,
-          email: user.email || undefined,
+      if (nextUser && !previousUserRef.current) {
+        MixpanelManager.identify(nextUser.uid, {
+          name: nextUser.displayName || undefined,
+          email: nextUser.email || undefined,
         });
       }
 
-      previousUserRef.current = user;
+      previousUserRef.current = nextUser;
     });
 
     return () => unsubscribe();
   }, []);
-
-  const handleSignInWithGoogle = async () => {
-    try {
-      await signInWithGoogle();
-      MixpanelManager.track('Sign In Completed', { method: 'google' });
-    } catch (error) {
-      console.error('Failed to sign in with Google:', error);
-      throw error;
-    }
-  };
-
-  const handleSignInWithApple = async () => {
-    try {
-      await signInWithApple();
-      MixpanelManager.track('Sign In Completed', { method: 'apple' });
-    } catch (error) {
-      console.error('Failed to sign in with Apple:', error);
-      throw error;
-    }
-  };
 
   const handleSignOut = async () => {
     try {
       MixpanelManager.track('Sign Out');
       MixpanelManager.reset();
       await signOutUser();
+      previousUserRef.current = null;
+      setUser(null);
     } catch (error) {
       console.error('Failed to sign out:', error);
       throw error;
@@ -97,8 +96,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value: AuthContextType = {
     user,
     loading,
-    signInWithGoogle: handleSignInWithGoogle,
-    signInWithApple: handleSignInWithApple,
     signOut: handleSignOut,
     getToken: handleGetToken,
     isLoginPanelOpen,

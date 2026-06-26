@@ -2556,18 +2556,9 @@ function AccountSection({
             href="https://feedback.omi.me"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-between py-3 border-b border-white/[0.06] text-text-primary hover:text-purple-400 transition-colors"
-          >
-            <span>Feedback & Bug Reports</span>
-            <ExternalLink className="w-4 h-4" />
-          </a>
-          <a
-            href="https://help.omi.me"
-            target="_blank"
-            rel="noopener noreferrer"
             className="flex items-center justify-between py-3 text-text-primary hover:text-purple-400 transition-colors"
           >
-            <span>Help Center</span>
+            <span>Feedback & Bug Reports</span>
             <ExternalLink className="w-4 h-4" />
           </a>
         </Card>
