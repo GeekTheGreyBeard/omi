@@ -17,8 +17,7 @@ type Props = {
   params: Promise<{ id: string }>;
 };
 
-// ISR configuration
-export const revalidate = 300; // Revalidate every 5 minutes
+export const dynamic = 'force-dynamic';
 export const dynamicParams = true; // Allow non-pre-rendered app pages
 
 // Helper function to format category name
@@ -44,9 +43,7 @@ function formatDate(dateString: string | null | undefined): string | null {
 
 // Pre-render only popular apps at build time
 export async function generateStaticParams() {
-  const { groups } = await getAppsV2();
-  const popularGroup = groups.find((g) => g.capability.id === 'popular');
-  return popularGroup?.data.map((app) => ({ id: app.id })) || [];
+  return [];
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

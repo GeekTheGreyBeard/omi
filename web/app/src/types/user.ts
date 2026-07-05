@@ -4,7 +4,10 @@ export interface UserProfile {
   uid: string;
   email: string;
   name: string;
+  given_name?: string;
+  family_name?: string;
   created_at?: string;
+  updated_at?: string;
 }
 
 export interface DailySummarySettings {

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:firebase_auth/firebase_auth.dart';
-
+import 'package:omi/backend/http/api/users.dart';
 import 'package:omi/backend/preferences.dart';
 import 'package:omi/services/auth_service.dart';
 import 'package:omi/utils/alerts/app_snackbar.dart';
@@ -16,14 +15,12 @@ class ChangeNameWidget extends StatefulWidget {
 
 class _ChangeNameWidgetState extends State<ChangeNameWidget> {
   late TextEditingController nameController;
-  User? user;
   bool isSaving = false;
 
   @override
   void initState() {
-    user = AuthService.instance.getFirebaseUser();
     nameController = TextEditingController(
-      text: SharedPreferencesUtil().givenName.isNotEmpty ? SharedPreferencesUtil().givenName : user?.displayName ?? '',
+      text: SharedPreferencesUtil().fullName,
     );
     super.initState();
   }
@@ -97,14 +94,22 @@ class _ChangeNameWidgetState extends State<ChangeNameWidget> {
                   child: GestureDetector(
                     onTap: isSaving
                         ? null
-                        : () {
+                        : () async {
                             if (nameController.text.isEmpty || nameController.text.trim().isEmpty) {
                               AppSnackbar.showSnackbarError(context.l10n.nameCannotBeEmpty);
                               return;
                             }
                             setState(() => isSaving = true);
-                            SharedPreferencesUtil().givenName = nameController.text.trim();
-                            AuthService.instance.updateGivenName(nameController.text.trim());
+                            final fullName = nameController.text.trim();
+                            final savedProfile = await updateEditableUserProfile(fullName: fullName);
+                            if (!context.mounted) return;
+                            if (savedProfile == null) {
+                              AppSnackbar.showSnackbarError(context.l10n.somethingWentWrong);
+                              setState(() => isSaving = false);
+                              return;
+                            }
+                            await AuthService.instance.updateGivenName(fullName);
+                            if (!context.mounted) return;
                             AppSnackbar.showSnackbar(context.l10n.nameUpdatedSuccessfully);
                             Navigator.of(context).pop();
                           },

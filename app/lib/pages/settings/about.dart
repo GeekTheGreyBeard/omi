@@ -57,16 +57,6 @@ class _AboutOmiPageState extends State<AboutOmiPage> {
                 await IntercomManager.instance.intercom.displayMessenger();
               },
             ),
-            ListTile(
-              contentPadding: const EdgeInsets.fromLTRB(4, 0, 24, 0),
-              title: Text(context.l10n.joinCommunity, style: const TextStyle(color: Colors.white)),
-              subtitle: Text(context.l10n.membersAndCounting),
-              trailing: const Icon(Icons.discord, color: Colors.purple, size: 20),
-              onTap: () {
-                PlatformManager.instance.analytics.pageOpened('About Join Discord');
-                launchUrl(Uri.parse('http://discord.omi.me'));
-              },
-            ),
           ],
         ),
       ),

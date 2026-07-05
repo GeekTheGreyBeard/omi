@@ -276,6 +276,9 @@ export const cacheKeys = {
 
   actionItems: () => 'actionItems',
 
+  reviewInbox: (status: string, type: string, offset: number) =>
+    `reviewInbox:${status}:${type}:${offset}`,
+
   folders: () => 'folders',
 
   knowledgeGraph: () => 'knowledgeGraph',
@@ -290,6 +293,7 @@ export const invalidationPatterns = {
   conversations: 'conversations',
   memories: 'memories',
   actionItems: 'actionItems',
+  reviewInbox: 'reviewInbox',
   folders: 'folders',
   apps: 'apps',
 };

@@ -453,7 +453,7 @@ class ActionItemsProvider extends ChangeNotifier {
           _actionItems[index] = newItem;
           notifyListeners();
         }
-        // Direct sync to Apple Reminders — no FCM roundtrip needed
+        // Direct sync to Apple Reminders, no remote notification roundtrip needed.
         _syncToAppleRemindersIfNeeded(newItem);
         return newItem;
       } else {
@@ -470,7 +470,7 @@ class ActionItemsProvider extends ChangeNotifier {
     }
   }
 
-  /// Directly create an Apple Reminder without waiting for FCM roundtrip.
+  /// Directly create an Apple Reminder without waiting for a notification roundtrip.
   /// Fire-and-forget — doesn't block the UI.
   void _syncToAppleRemindersIfNeeded(ActionItemWithMetadata item) {
     if (!PlatformService.isApple) return;

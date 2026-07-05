@@ -357,6 +357,7 @@ class _SpeechProfileWidgetState extends State<SpeechProfileWidget> with TickerPr
                                               );
 
                                               if (!success) {
+                                                widget.onSkip();
                                                 return;
                                               }
 
@@ -386,6 +387,14 @@ class _SpeechProfileWidgetState extends State<SpeechProfileWidget> with TickerPr
                                             ),
                                           ),
                                         ),
+                                  const SizedBox(height: 8),
+                                  TextButton(
+                                    onPressed: widget.onSkip,
+                                    child: Text(
+                                      context.l10n.skipForNow,
+                                      style: const TextStyle(color: Colors.grey, fontSize: 14, fontFamily: 'Manrope'),
+                                    ),
+                                  ),
                                 ] else if (provider.profileCompleted) ...[
                                   // All Done state
                                   const SizedBox(height: 16),

@@ -9,7 +9,7 @@ import 'package:omi/backend/preferences.dart';
 import 'package:omi/utils/analytics/intercom.dart';
 import 'package:omi/utils/analytics/analytics_manager.dart';
 import 'package:omi/utils/debugging/crash_reporter.dart';
-import 'package:omi/utils/debugging/crashlytics_manager.dart';
+import 'package:omi/utils/debugging/local_crash_reporter.dart';
 import 'package:omi/utils/platform/platform_service.dart';
 
 /// Centralized platform manager for all platform-specific services
@@ -27,7 +27,7 @@ class PlatformManager {
   // Service instances
   AnalyticsManager get analytics => AnalyticsManager();
   IntercomManager get intercom => IntercomManager.instance;
-  CrashReporter get crashReporter => CrashlyticsManager.instance;
+  CrashReporter get crashReporter => LocalCrashReporter.instance;
 
   static Future<void> initializeServices() async {
     _instance._packageInfo = await PackageInfo.fromPlatform();
@@ -38,8 +38,8 @@ class PlatformManager {
 
   Future<String> _getDeviceIdHash() async {
     // Check if already stored
-    String? storedHash = SharedPreferencesUtil().deviceIdHash;
-    if (storedHash != null && storedHash.isNotEmpty) {
+    final storedHash = SharedPreferencesUtil().deviceIdHash;
+    if (storedHash.isNotEmpty) {
       return storedHash;
     }
 
@@ -71,6 +71,5 @@ class PlatformManager {
   String get deviceIdHash => _deviceIdHash;
 
   bool get isAnalyticsSupported => PlatformService.isAnalyticsSupported;
-  bool get isDebuggingSupported => PlatformService.isCrashlyticsSupported;
-  bool get isFCMSupported => Platform.isAndroid || Platform.isIOS;
+  bool get isDebuggingSupported => PlatformService.isCrashReportingSupported;
 }

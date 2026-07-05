@@ -3,7 +3,6 @@ import 'dart:math';
 import 'package:omi/utils/platform/platform_manager.dart';
 import 'package:flutter/material.dart';
 
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 
@@ -302,11 +301,10 @@ class _OnboardingWrapperState extends State<OnboardingWrapper> with TickerProvid
       NameWidget(
         goNext: () {
           _goNext(); // Go to Primary Language page
-          final firebaseUser = FirebaseAuth.instance.currentUser;
           IntercomManager.instance.updateUser(
-            firebaseUser?.email ?? SharedPreferencesUtil().email,
-            firebaseUser?.displayName ?? SharedPreferencesUtil().fullName,
-            firebaseUser?.uid ?? SharedPreferencesUtil().uid,
+            SharedPreferencesUtil().email,
+            SharedPreferencesUtil().fullName,
+            SharedPreferencesUtil().uid,
           );
           PlatformManager.instance.analytics.onboardingStepCompleted('Name');
         },

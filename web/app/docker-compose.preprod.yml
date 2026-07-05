@@ -19,6 +19,7 @@ services:
     restart: unless-stopped
     environment:
       SERVER_API_BASE_URL: ${SERVER_API_BASE_URL:?SERVER_API_BASE_URL is required}
+      SPLATI_AUTH_BASE_URL: ${SPLATI_AUTH_BASE_URL:-http://omi-auth-staging.gtgb.io}
       PORT: 3000
       HOSTNAME: 0.0.0.0
     ports:

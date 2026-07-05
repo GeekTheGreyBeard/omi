@@ -365,14 +365,6 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
       // --- Support ---
       if (PlatformService.isIntercomSupported) ...[
         _SearchableItem(
-          title: context.l10n.feedbackBug,
-          icon: const FaIcon(FontAwesomeIcons.solidEnvelope, color: Color(0xFF8E8E93), size: 20),
-          onTap: () async {
-            final Uri url = Uri.parse('https://feedback.omi.me/');
-            if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.inAppBrowserView);
-          },
-        ),
-        _SearchableItem(
           title: context.l10n.helpCenter,
           icon: const FaIcon(FontAwesomeIcons.book, color: Color(0xFF8E8E93), size: 20),
           onTap: () async {
@@ -630,17 +622,6 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
             _buildSectionContainer(
               children: [
                 if (PlatformService.isIntercomSupported) ...[
-                  _buildSettingsItem(
-                    title: context.l10n.feedbackBug,
-                    icon: const FaIcon(FontAwesomeIcons.solidEnvelope, color: Color(0xFF8E8E93), size: 20),
-                    onTap: () async {
-                      final Uri url = Uri.parse('https://feedback.omi.me/');
-                      if (await canLaunchUrl(url)) {
-                        await launchUrl(url, mode: LaunchMode.inAppBrowserView);
-                      }
-                    },
-                  ),
-                  const Divider(height: 1, color: Color(0xFF3C3C43)),
                   _buildSettingsItem(
                     title: context.l10n.helpCenter,
                     icon: const FaIcon(FontAwesomeIcons.book, color: Color(0xFF8E8E93), size: 20),

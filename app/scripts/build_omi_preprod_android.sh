@@ -13,13 +13,12 @@ BUILD_MODE="${BUILD_MODE:-debug}"
 
 cd "$APP_DIR"
 export ANDROID_HOME ANDROID_SDK_ROOT
-export ORG_GRADLE_PROJECT_localBuildDisableCrashlyticsUpload=true
 export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
 
 "$FLUTTER_BIN" build apk \
   --flavor "$FLAVOR" \
   "--$BUILD_MODE" \
-  --build-number="${BUILD_NUMBER:-907}" \
+  --build-number="${BUILD_NUMBER:-918}" \
   --dart-define="API_BASE_URL=$API_BASE_URL" \
   --dart-define="STAGING_API_URL=$STAGING_API_URL" \
   --dart-define="LIVE_TRANSCRIPTION_WS_BASE_URL=$LIVE_TRANSCRIPTION_WS_BASE_URL"

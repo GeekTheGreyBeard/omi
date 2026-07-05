@@ -6,7 +6,7 @@ import { Plus, Sparkles, Loader2, ChevronDown, X, MessageSquare, Send, ArrowLeft
 import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
 import { getApp, reprocessConversation, testConversationPrompt, createApp, enableApp, generateAppDescriptionAndEmoji, getInstalledApps } from '@/lib/api';
-import { auth } from '@/lib/firebase';
+import { getPortalUid } from '@/lib/portalAuth';
 import type { App } from '@/types/apps';
 import type { Conversation, AppResponse } from '@/types/conversation';
 
@@ -227,6 +227,10 @@ export function GenerateSummaryButton({
 
       // Generate icon from emoji using canvas
       const iconFile = await generateEmojiIcon(emoji);
+      const uid = getPortalUid();
+      if (!uid) {
+        throw new Error('User ID is not available');
+      }
 
       // Create the template app (matching mobile app's payload structure)
       const appData = {
@@ -240,7 +244,7 @@ export function GenerateSummaryButton({
         memory_prompt: templatePrompt.trim(),
         deleted: false,
         thumbnails: [],
-        uid: auth.currentUser?.uid, // Critical: associates app with user
+        uid, // Critical: associates app with user
       };
 
       const { app_id } = await createApp(appData, iconFile);

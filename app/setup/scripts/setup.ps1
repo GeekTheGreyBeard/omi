@@ -41,52 +41,9 @@ Write-Host "- NDK (28.2.13676358)"
 Write-Host ""
 
 
-function SetupFirebase {
-    # Create directories if they don't exist
+function SetupPlatformIdentity {
     New-Item -ItemType Directory -Force -Path "android/app/src/dev/", "ios/Config/Dev/", "ios/Runner/"
-    
-    # Copy files
-    Copy-Item "setup/prebuilt/firebase_options.dart" -Destination "lib/firebase_options_dev.dart"
-    Copy-Item "setup/prebuilt/google-services.json" -Destination "android/app/src/dev/"
-    Copy-Item "setup/prebuilt/GoogleService-Info.plist" -Destination "ios/Config/Dev/"
-    Copy-Item "setup/prebuilt/GoogleService-Info.plist" -Destination "ios/Runner/"
-
-    # Mocking setup
     New-Item -ItemType Directory -Force -Path "android/app/src/prod/", "ios/Config/Prod/"
-    Copy-Item "setup/prebuilt/firebase_options.dart" -Destination "lib/firebase_options_prod.dart"
-    Copy-Item "setup/prebuilt/google-services.json" -Destination "android/app/src/prod/"
-    Copy-Item "setup/prebuilt/GoogleService-Info.plist" -Destination "ios/Config/Prod/"
-}
-
-
-function SetupFirebaseWithServiceAccount {
-    dart pub global activate flutterfire_cli
-    
-    # Dev configuration
-    flutterfire config `
-        --platforms="android,ios,web" `
-        --out="lib/firebase_options_dev.dart" `
-        --ios-bundle-id="com.friend-app-with-wearable.ios12.development" `
-        --android-app-id="com.friend.ios.dev" `
-        --android-out="android/app/src/dev/" `
-        --ios-out="ios/Config/Dev/" `
-        --service-account="$env:FIREBASE_SERVICE_ACCOUNT_KEY" `
-        --project="based-hardware-dev" `
-        --ios-target="Runner" `
-        --yes
-
-    # Prod configuration
-    flutterfire config `
-        --platforms="android,ios,web" `
-        --out="lib/firebase_options_prod.dart" `
-        --ios-bundle-id="com.friend-app-with-wearable.ios12" `
-        --android-app-id="com.friend.ios.dev" `
-        --android-out="android/app/src/prod/" `
-        --ios-out="ios/Config/Prod/" `
-        --service-account="$env:FIREBASE_SERVICE_ACCOUNT_KEY" `
-        --project="based-hardware-dev" `
-        --ios-target="Runner" `
-        --yes
 }
 
 function SetupProvisioningProfile {
@@ -162,7 +119,7 @@ $platform = if ($args.Count -eq 0) {
 switch ($platform.ToLower()) {
     "ios" {
         Write-Host "`nSetting up iOS platform..."
-        SetupFirebase
+        SetupPlatformIdentity
         SetupAppEnv
         SetupProvisioningProfile
         BuildiOS
@@ -170,7 +127,7 @@ switch ($platform.ToLower()) {
     "android" {
         Write-Host "`nSetting up Android platform..."
         SetupKeystoreAndroid
-        SetupFirebase
+        SetupPlatformIdentity
         SetupAppEnv
         Build
     }

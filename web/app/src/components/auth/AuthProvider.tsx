@@ -1,14 +1,13 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode, useRef, useCallback } from 'react';
-import { User } from 'firebase/auth';
 import {
   onAuthStateChange,
   signOutUser,
-  getIdToken,
-  getPortalToken,
+  getPlatformToken,
+  getPortalUser,
   PORTAL_TOKEN_CHANGED_EVENT,
-} from '@/lib/firebase';
+} from '@/lib/portalAuth';
 import { MixpanelManager } from '@/lib/analytics/mixpanel';
 
 type PortalUser = {
@@ -18,7 +17,7 @@ type PortalUser = {
   photoURL: string | null;
 };
 
-type AuthUser = User | PortalUser;
+type AuthUser = PortalUser;
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -32,21 +31,6 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const createPortalUser = (): PortalUser | null => {
-  return getPortalToken()
-    ? {
-        uid: 'portal-device',
-        displayName: 'Paired Omi device',
-        email: null,
-        photoURL: null,
-      }
-    : null;
-};
-
-const isFirebaseUser = (user: AuthUser | null): user is User => {
-  return !!user && typeof (user as User).getIdToken === 'function';
-};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -63,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Subscribe to auth state changes
     const unsubscribe = onAuthStateChange((user) => {
-      const nextUser = user || createPortalUser();
+      const nextUser = user || getPortalUser();
 
       setUser(nextUser);
       setLoading(false);
@@ -84,7 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const handlePortalTokenChanged = () => {
-      setUser((authUser) => (isFirebaseUser(authUser) ? authUser : createPortalUser()));
+      setUser(getPortalUser());
       setLoading(false);
     };
 
@@ -111,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const handleGetToken = async () => {
-    return getIdToken();
+    return getPlatformToken();
   };
 
   const value: AuthContextType = {

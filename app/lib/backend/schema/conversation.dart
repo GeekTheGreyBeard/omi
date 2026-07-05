@@ -298,9 +298,7 @@ class ServerConversation {
       structured: Structured.fromJson(json['structured']),
       startedAt: json['started_at'] != null ? DateTime.parse(json['started_at']).toLocal() : null,
       finishedAt: json['finished_at'] != null ? DateTime.parse(json['finished_at']).toLocal() : null,
-      transcriptSegments: ((json['transcript_segments'] ?? []) as List<dynamic>)
-          .map((segment) => TranscriptSegment.fromJson(segment))
-          .toList(),
+      transcriptSegments: _parseTranscriptSegments(json),
       appResults:
           ((json['apps_results'] ?? []) as List<dynamic>).map((result) => AppResponse.fromJson(result)).toList(),
       suggestedSummarizationApps:
@@ -325,6 +323,35 @@ class ServerConversation {
       folderId: json['folder_id'],
       visibility: ConversationVisibility.fromString(json['visibility']),
     );
+  }
+
+  static List<TranscriptSegment> _parseTranscriptSegments(Map<String, dynamic> json) {
+    final rawSegments = json['transcript_segments'] ?? json['transcriptSegments'] ?? json['segments'];
+    if (rawSegments is List<dynamic>) {
+      return TranscriptSegment.fromJsonList(rawSegments);
+    }
+
+    final rawTranscript = json['transcript'] ?? json['transcript_text'] ?? json['transcriptText'];
+    if (rawTranscript is List<dynamic>) {
+      return TranscriptSegment.fromJsonList(rawTranscript);
+    }
+
+    if (rawTranscript is String && rawTranscript.trim().isNotEmpty) {
+      final segment = TranscriptSegment(
+        id: '',
+        text: rawTranscript.trim(),
+        speaker: 'SPEAKER_00',
+        isUser: false,
+        personId: null,
+        start: 0.0,
+        end: 0.0,
+        translations: [],
+      );
+      segment.idx = 0;
+      return [segment];
+    }
+
+    return [];
   }
 
   Map<String, dynamic> toJson() {

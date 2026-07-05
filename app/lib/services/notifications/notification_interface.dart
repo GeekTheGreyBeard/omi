@@ -21,7 +21,6 @@ abstract class NotificationInterface {
   Future<bool> requestNotificationPermissions();
   Future<void> register();
   Future<String> getTimeZone();
-  Future<void> saveFcmToken(String? token);
   void saveNotificationToken();
   Future<bool> hasNotificationPermissions();
 

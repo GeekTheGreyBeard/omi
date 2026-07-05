@@ -1,10 +1,8 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
 
@@ -62,11 +60,13 @@ class PortalLoginRequest {
 class PortalAccessStatus {
   final bool registered;
   final bool locked;
+  final bool renewalRequired;
   final int deviceCount;
 
   const PortalAccessStatus({
     required this.registered,
     required this.locked,
+    required this.renewalRequired,
     required this.deviceCount,
   });
 
@@ -74,6 +74,7 @@ class PortalAccessStatus {
     return PortalAccessStatus(
       registered: json['registered'] == true,
       locked: json['locked'] == true,
+      renewalRequired: json['renewal_required'] == true || json['error'] == 'portal_registration_renewal_required',
       deviceCount: (json['device_count'] as num?)?.toInt() ?? 0,
     );
   }
@@ -85,17 +86,10 @@ class AuthService {
 
   AuthService._internal();
 
-  bool isSignedIn() =>
-      FirebaseAuth.instance.currentUser != null && !FirebaseAuth.instance.currentUser!.isAnonymous ||
-      hasValidPlatformSession();
-
-  getFirebaseUser() {
-    return FirebaseAuth.instance.currentUser;
-  }
+  bool isSignedIn() => hasValidPlatformSession();
 
   Future<void> signOut() async {
     _clearCachedAuth();
-    await FirebaseAuth.instance.signOut();
   }
 
   void _clearCachedAuth() {
@@ -103,48 +97,27 @@ class AuthService {
     SharedPreferencesUtil().tokenExpirationTime = 0;
   }
 
-  Future<String?> getIdToken() async {
-    try {
-      if (FirebaseAuth.instance.currentUser == null) {
-        if (hasValidPlatformSession()) {
-          Logger.debug('getIdToken: using cached platform session token');
-          return SharedPreferencesUtil().authToken;
-        }
-        Logger.debug('getIdToken: currentUser is null and no platform session is cached');
-        return null;
-      }
-      IdTokenResult? newToken = await FirebaseAuth.instance.currentUser?.getIdTokenResult(true);
-      if (newToken?.token != null) {
-        var user = FirebaseAuth.instance.currentUser!;
-        SharedPreferencesUtil().uid = user.uid;
-        SharedPreferencesUtil().tokenExpirationTime = newToken?.expirationTime?.millisecondsSinceEpoch ?? 0;
-        SharedPreferencesUtil().authToken = newToken?.token ?? '';
-        if (SharedPreferencesUtil().email.isEmpty) {
-          SharedPreferencesUtil().email = user.email ?? '';
-        }
+  void applyRegistrationRenewalHold() {
+    final preferences = SharedPreferencesUtil();
+    preferences.splatIRegistrationRenewalRequired = true;
+    preferences.authToken = '';
+    preferences.tokenExpirationTime = 0;
+    preferences.uid = '';
+    preferences.onboardingCompleted = false;
+    preferences.permissionsCompleted = false;
+    preferences.aiConsentGiven = false;
+    preferences.hasSetPrimaryLanguage = false;
+    preferences.hasSpeakerProfile = false;
+  }
 
-        if (SharedPreferencesUtil().givenName.isEmpty) {
-          SharedPreferencesUtil().givenName = user.displayName?.split(' ')[0] ?? '';
-          if ((user.displayName?.split(' ').length ?? 0) > 1) {
-            SharedPreferencesUtil().familyName = user.displayName?.split(' ')[1] ?? '';
-          } else {
-            SharedPreferencesUtil().familyName = '';
-          }
-        }
-        return newToken?.token;
-      }
-      Logger.debug('getIdToken: token refresh returned null');
-      return null;
-    } on FirebaseAuthException catch (e) {
-      Logger.debug('getIdToken: FirebaseAuthException: ${e.code} - $e');
-      if (e.code == 'user-not-found' || e.code == 'user-disabled' || e.code == 'user-token-expired') {
-        _clearCachedAuth();
-      }
-      return null;
-    } catch (e) {
-      Logger.debug('getIdToken: token refresh failed (transient): $e');
-      return null;
+  Future<String?> getPlatformToken() async {
+    if (hasValidPlatformSession()) {
+      Logger.debug('getPlatformToken: using cached platform session token');
+      return SharedPreferencesUtil().authToken;
     }
+    Logger.debug('getPlatformToken: no valid platform session is cached');
+    _clearCachedAuth();
+    return null;
   }
 
   bool hasValidPlatformSession() {
@@ -170,6 +143,34 @@ class AuthService {
     return const OmiAuthDeviceIdentity(phoneNumber: '', deviceIdentifier: '', deviceIdentifierType: 'unsupported');
   }
 
+  Future<bool> enforceRegistrationRenewalIfRequired() async {
+    OmiAuthDeviceIdentity identity;
+    try {
+      identity = await getOmiAuthDeviceIdentity();
+    } catch (e) {
+      Logger.debug('Portal renewal preflight identity lookup failed: $e');
+      final cachedPhoneNumber = SharedPreferencesUtil().splatIAccountPhoneNumber;
+      if (cachedPhoneNumber.isEmpty) return SharedPreferencesUtil().splatIRegistrationRenewalRequired;
+      identity = OmiAuthDeviceIdentity(
+        phoneNumber: cachedPhoneNumber,
+        deviceIdentifier: '',
+        deviceIdentifierType: 'device',
+      );
+    }
+
+    final phoneNumber = identity.phoneNumber.trim();
+    if (phoneNumber.isEmpty) return SharedPreferencesUtil().splatIRegistrationRenewalRequired;
+    SharedPreferencesUtil().splatIAccountPhoneNumber = phoneNumber;
+
+    final status = await getPortalAccessStatus(identity: identity);
+    if (status?.renewalRequired == true) {
+      Logger.debug('Portal renewal preflight: renewal is required; clearing cached app session');
+      applyRegistrationRenewalHold();
+      return true;
+    }
+    return SharedPreferencesUtil().splatIRegistrationRenewalRequired;
+  }
+
   Future<bool> claimAccountCode({
     required OmiAuthDeviceIdentity identity,
     required String accountCode,
@@ -180,6 +181,7 @@ class AuthService {
     if (normalizedPhone.isEmpty || deviceIdentifier.isEmpty || normalizedCode.isEmpty) {
       return false;
     }
+    SharedPreferencesUtil().splatIAccountPhoneNumber = normalizedPhone;
 
     final legacyClaimed = await _claimLegacyAccountCode(
       identity: identity,
@@ -243,7 +245,12 @@ class AuthService {
     }
 
     _storePlatformSession(body: body, token: platformToken);
-    await registerPortalAccess(identity: identity);
+    final portalAccessStatus = await registerPortalAccess(identity: identity);
+    if (portalAccessStatus?.renewalRequired == true) {
+      applyRegistrationRenewalHold();
+      return false;
+    }
+    SharedPreferencesUtil().splatIRegistrationRenewalRequired = false;
     return true;
   }
 
@@ -259,6 +266,7 @@ class AuthService {
   }) async {
     final phoneNumber = identity.phoneNumber.trim();
     if (phoneNumber.isEmpty) return [];
+    SharedPreferencesUtil().splatIAccountPhoneNumber = phoneNumber;
 
     final baseUrl = (Env.apiBaseUrl ?? Env.defaultSplatIApiBaseUrl).replaceFirst(RegExp(r'/+$'), '');
     final query = {
@@ -309,7 +317,11 @@ class AuthService {
     Logger.debug('Portal access status response: ${response.statusCode}');
     if (response.statusCode != 200) {
       Logger.debug('Portal access status failed: ${response.body}');
-      return null;
+      try {
+        return PortalAccessStatus.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+      } catch (_) {
+        return null;
+      }
     }
 
     return PortalAccessStatus.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
@@ -319,6 +331,7 @@ class AuthService {
     required OmiAuthDeviceIdentity identity,
   }) async {
     if (!identity.isComplete) return null;
+    SharedPreferencesUtil().splatIAccountPhoneNumber = identity.phoneNumber.trim();
 
     final baseUrl = (Env.apiBaseUrl ?? Env.defaultSplatIApiBaseUrl).replaceFirst(RegExp(r'/+$'), '');
     final response = await http.post(
@@ -338,7 +351,11 @@ class AuthService {
     Logger.debug('Portal access registration response: ${response.statusCode}');
     if (response.statusCode != 200) {
       Logger.debug('Portal access registration failed: ${response.body}');
-      return null;
+      try {
+        return PortalAccessStatus.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+      } catch (_) {
+        return null;
+      }
     }
 
     return PortalAccessStatus.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
@@ -391,6 +408,7 @@ class AuthService {
     if (normalizedCode.isEmpty || !identity.isComplete) {
       return false;
     }
+    SharedPreferencesUtil().splatIAccountPhoneNumber = identity.phoneNumber.trim();
 
     final baseUrl = (Env.apiBaseUrl ?? Env.defaultSplatIApiBaseUrl).replaceFirst(RegExp(r'/+$'), '');
     final response = await http.post(
@@ -412,6 +430,12 @@ class AuthService {
     Logger.debug('Portal pairing decision response status: ${response.statusCode}');
     if (response.statusCode != 200) {
       Logger.debug('Portal pairing decision failed: ${response.body}');
+      try {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        if (PortalAccessStatus.fromJson(body).renewalRequired) {
+          applyRegistrationRenewalHold();
+        }
+      } catch (_) {}
       return false;
     }
 
@@ -426,6 +450,7 @@ class AuthService {
     }
 
     _storePlatformSession(body: body, token: portalToken);
+    SharedPreferencesUtil().splatIRegistrationRenewalRequired = false;
     return true;
   }
 
@@ -470,6 +495,14 @@ class AuthService {
     return _restoreOnboardingState();
   }
 
+  Future<void> restoreProfileState() async {
+    try {
+      await refreshEditableUserProfilePreferences();
+    } catch (e) {
+      Logger.debug('DEBUG restoreProfileState: error=$e');
+    }
+  }
+
   Future<void> _restoreOnboardingState() async {
     try {
       Logger.debug('DEBUG _restoreOnboardingState: fetching from server...');
@@ -501,40 +534,9 @@ class AuthService {
 
   Future<void> updateGivenName(String fullName) async {
     try {
-      var user = FirebaseAuth.instance.currentUser;
-
       SharedPreferencesUtil().givenName = fullName.split(' ')[0];
       if (fullName.split(' ').length > 1) {
         SharedPreferencesUtil().familyName = fullName.split(' ').sublist(1).join(' ');
-      }
-
-      if (user == null) {
-        Logger.debug('Firebase user is null, skipping Firebase profile update');
-        return;
-      }
-
-      // Try to update Firebase profile with platform-specific handling
-      try {
-        Logger.debug('Attempting to update Firebase user profile...');
-
-        if (kIsWeb) {
-          Logger.debug('Web platform detected - attempting updateProfile with caution');
-
-          // Try with a timeout to prevent hanging
-          await user.updateProfile(displayName: fullName).timeout(
-            const Duration(seconds: 5),
-            onTimeout: () {
-              Logger.debug('updateProfile timed out on web platform');
-              throw TimeoutException('updateProfile timed out', const Duration(seconds: 5));
-            },
-          );
-        } else {
-          await user.updateProfile(displayName: fullName);
-        }
-        await user.reload();
-        user = FirebaseAuth.instance.currentUser;
-      } catch (updateError) {
-        Logger.debug('Firebase updateProfile failed: $updateError');
       }
     } catch (e) {
       Logger.debug('Error in updateGivenName: $e');

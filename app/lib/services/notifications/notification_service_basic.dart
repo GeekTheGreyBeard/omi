@@ -7,10 +7,11 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 
 import 'package:omi/backend/schema/message.dart';
 import 'package:omi/services/notifications/notification_interface.dart';
+import 'package:omi/services/portal_login_request_monitor.dart';
 import 'package:omi/utils/logger.dart';
 
-/// Basic notification service for platforms without Firebase Messaging support
-/// Currently used for Windows - provides local notifications only
+/// Basic notification service for the platform build.
+/// Provides local notifications while remote delivery is owned by Splat-I APIs.
 class _BasicNotificationService implements NotificationInterface {
   _BasicNotificationService._();
 
@@ -28,7 +29,7 @@ class _BasicNotificationService implements NotificationInterface {
   @override
   Future<void> initialize() async {
     await _initializeAwesomeNotifications();
-    Logger.debug('Basic notification service initialized (Firebase Messaging not available on this platform)');
+    Logger.debug('Basic notification service initialized');
   }
 
   Future<void> _initializeAwesomeNotifications() async {
@@ -43,6 +44,15 @@ class _BasicNotificationService implements NotificationInterface {
           channelDescription: channel.channelDescription,
           defaultColor: const Color(0xFF9D50DD),
           ledColor: Colors.white,
+        ),
+        NotificationChannel(
+          channelKey: PortalLoginRequestMonitor.portalNotificationChannelKey,
+          channelName: 'Portal login requests',
+          channelDescription: 'Login approvals for the Omi web portal',
+          defaultColor: const Color(0xFF9D50DD),
+          ledColor: Colors.white,
+          importance: NotificationImportance.Max,
+          channelShowBadge: true,
         ),
       ],
       // Channel groups are only visual and are not required
@@ -108,15 +118,8 @@ class _BasicNotificationService implements NotificationInterface {
   }
 
   @override
-  Future<void> saveFcmToken(String? token) async {
-    // Firebase Cloud Messaging not supported on this platform
-    Logger.debug('FCM token save skipped - Firebase Messaging not supported on this platform');
-  }
-
-  @override
   void saveNotificationToken() {
-    // Firebase Cloud Messaging not supported on this platform
-    Logger.debug('Notification token save skipped - Firebase Messaging not supported on this platform');
+    Logger.debug('Notification token save skipped - no push provider is configured');
   }
 
   @override
@@ -143,9 +146,7 @@ class _BasicNotificationService implements NotificationInterface {
 
   @override
   Future<void> listenForMessages() async {
-    // Firebase Cloud Messaging not supported on this platform
-    // Local notifications still work, but no remote messaging
-    Logger.debug('Firebase message listening not available on this platform');
+    Logger.debug('Remote message listening not available on this platform');
   }
 
   final _serverMessageStreamController = StreamController<ServerMessage>.broadcast();

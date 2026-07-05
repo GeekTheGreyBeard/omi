@@ -962,6 +962,7 @@ class CaptureProvider extends ChangeNotifier
         'sampleRate': mapCodecToSampleRate(codec),
         'source': _getConversationSourceFromDevice(),
         'apiBaseUrl': Env.apiBaseUrl ?? 'https://omi.splat-i.io/',
+        'transcriptionWsBaseUrl': Env.liveTranscriptionWsBaseUrl ?? Env.apiBaseUrl ?? 'https://omi.splat-i.io/',
         'serviceUuid': audioTarget.key,
         'characteristicUuid': audioTarget.value,
         'deviceType': device.type.name,

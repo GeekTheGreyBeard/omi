@@ -39,7 +39,6 @@ class PrivacyInfoPage extends StatelessWidget {
             _buildBulletPoint(
               'Transcript and Conversation Data: We track the length, word count, and number of speakers in your transcripts. For memories, we track their creation, editing, sharing, and deletion.',
             ),
-            _buildBulletPoint('Feedback: We track feedback given to the Coach Advisor.'),
             _buildBulletPoint('Chat Interactions: We track messages sent and interactions with memories through chat.'),
             _buildBulletPoint(
               'Speech Profile: We track the capture, start, onboarding, and completion of your speech profile.',
@@ -57,7 +56,6 @@ class PrivacyInfoPage extends StatelessWidget {
             ),
             _buildBulletPoint('Support: We track when you contact support.'),
             _buildBulletPoint('Privacy Page: We track when you open the privacy details page.'),
-            _buildBulletPoint('Join Discord: We track when you click to join our Discord.'),
             _buildBulletPoint('Copy Conversation Details: We track when you copy conversation details.'),
             _buildBulletPoint('Upgrade Modal: We track when the upgrade modal is dismissed or clicked.'),
             _buildBulletPoint('Get/Connect Device: We track when you click to get or connect your device.'),

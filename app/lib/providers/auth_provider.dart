@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:omi/backend/http/api/apps.dart' as apps_api;
@@ -10,68 +9,24 @@ import 'package:omi/utils/logger.dart';
 import 'package:omi/utils/platform/platform_manager.dart';
 
 class AuthenticationProvider extends BaseProvider {
-  FirebaseAuth get _auth => FirebaseAuth.instance;
-
-  User? user;
   String? authToken;
   bool _loading = false;
   @override
   bool get loading => _loading;
 
   AuthenticationProvider() {
-    _initializeAuthListeners();
-  }
-
-  void _initializeAuthListeners() {
-    // DEBUG: Log initial state
-    Logger.debug(
-      'DEBUG AuthProvider: Initial currentUser=${_auth.currentUser?.uid}, isAnonymous=${_auth.currentUser?.isAnonymous}',
-    );
-
-    Future.microtask(() {
-      _auth.authStateChanges().distinct((p, n) => p?.uid == n?.uid).listen((User? user) {
-        Logger.debug(
-          'DEBUG AuthProvider: authStateChanges fired - user=${user?.uid}, isAnonymous=${user?.isAnonymous}',
-        );
-        this.user = user;
-        // Only update SharedPreferences if Firebase has a user
-        // Don't clear cached credentials - allows fallback for dev builds
-        if (user != null) {
-          SharedPreferencesUtil().uid = user.uid;
-          SharedPreferencesUtil().email = user.email ?? '';
-          SharedPreferencesUtil().givenName = user.displayName?.split(' ')[0] ?? '';
-        }
-      });
-      _auth.idTokenChanges().distinct((p, n) => p?.uid == n?.uid).listen((User? user) async {
-        if (user == null) {
-          Logger.debug('User is currently signed out or the token has been revoked!');
-          if (AuthService.instance.hasValidPlatformSession()) {
-            authToken = SharedPreferencesUtil().authToken;
-          } else {
-            SharedPreferencesUtil().authToken = '';
-            SharedPreferencesUtil().tokenExpirationTime = 0;
-            authToken = null;
-          }
-        } else {
-          Logger.debug('User is signed in at ${DateTime.now()} with user ${user.uid}');
-          try {
-            if (SharedPreferencesUtil().authToken.isEmpty ||
-                DateTime.now().millisecondsSinceEpoch > SharedPreferencesUtil().tokenExpirationTime) {
-              authToken = await AuthService.instance.getIdToken();
-            }
-          } catch (e) {
-            authToken = null;
-            Logger.debug('Failed to get token: $e');
-          }
-        }
-        notifyListeners();
-      });
+    Future.microtask(() async {
+      authToken = await AuthService.instance.getPlatformToken();
+      if (authToken != null) {
+        await AuthService.instance.restoreProfileState();
+      }
+      Logger.debug('AuthProvider initialized with platform session=${authToken != null}');
+      notifyListeners();
     });
   }
 
   bool isSignedIn() {
-    return (_auth.currentUser != null && !_auth.currentUser!.isAnonymous) ||
-        AuthService.instance.hasValidPlatformSession();
+    return AuthService.instance.hasValidPlatformSession();
   }
 
   void setLoading(bool value) {

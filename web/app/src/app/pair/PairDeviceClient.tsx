@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { setPortalToken } from '@/lib/firebase';
+import { setPortalToken } from '@/lib/portalAuth';
 
 type PairingStatus = 'pending' | 'approved' | 'declined' | 'expired';
 
@@ -26,6 +26,9 @@ type PairDeviceMode = 'login' | 'register';
 
 const pairingErrorMessage = (error: unknown, retryAfterSeconds?: number): string => {
   if (error === 'missing_identity') return 'Enter the phone number shown in the Omi app.';
+  if (error === 'portal_registration_renewal_required') {
+    return 'Complete registration in the Omi app, then return here to register the portal.';
+  }
   if (error === 'portal_access_locked') return 'Portal access is locked. Unlock it from the Omi app before logging in.';
   if (error === 'portal_phone_locked') return `Try again in ${retryAfterSeconds ?? 30} seconds.`;
   if (error === 'portal_login_registration_locked') return `Login and registration are locked for ${retryAfterSeconds ?? 300} seconds.`;
@@ -66,6 +69,32 @@ export function PairDeviceClient({ mode = 'login' }: { mode?: PairDeviceMode }) 
   const [secondsRemaining, setSecondsRemaining] = useState(0);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [retryAfterRemaining, setRetryAfterRemaining] = useState(0);
+  const [renewalRequired, setRenewalRequired] = useState(false);
+
+  const checkRenewalRequired = useCallback(async (trimmedPhone: string) => {
+    if (mode !== 'register') return false;
+
+    const response = await fetch(`/api/portal-access?phoneNumber=${encodeURIComponent(trimmedPhone)}`, {
+      cache: 'no-store',
+    });
+    const data = await response.json().catch(() => ({}));
+    const requiresRenewal =
+      data?.renewal_required === true ||
+      data?.renewalRequired === true ||
+      data?.renewal_required === 'app' ||
+      data?.renewalRequired === 'app' ||
+      data?.error === 'portal_registration_renewal_required';
+
+    if (requiresRenewal) {
+      setRenewalRequired(true);
+      setPairing(null);
+      setError(null);
+      return true;
+    }
+
+    setRenewalRequired(false);
+    return false;
+  }, [mode]);
 
   const createPairing = useCallback(async () => {
     const trimmedPhone = phoneNumber.trim();
@@ -79,6 +108,8 @@ export function PairDeviceClient({ mode = 'login' }: { mode?: PairDeviceMode }) 
     setLoading(true);
     setError(null);
     try {
+      if (await checkRenewalRequired(trimmedPhone)) return;
+
       const response = await fetch('/api/portal-pairing', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -90,15 +121,22 @@ export function PairDeviceClient({ mode = 'login' }: { mode?: PairDeviceMode }) 
       if (!response.ok) {
         const retryAfterSeconds = Number(data?.retryAfterSeconds ?? data?.retry_after_seconds ?? 0);
         if (retryAfterSeconds > 0) setRetryAfterRemaining(retryAfterSeconds);
+        if (data?.error === 'portal_registration_renewal_required') {
+          setRenewalRequired(true);
+          setPairing(null);
+          setError(null);
+          return;
+        }
         throw new Error(pairingErrorMessage(data?.error, retryAfterSeconds));
       }
+      setRenewalRequired(false);
       setPairing(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create a portal login request.');
     } finally {
       setLoading(false);
     }
-  }, [phoneNumber, retryAfterRemaining]);
+  }, [checkRenewalRequired, phoneNumber, retryAfterRemaining]);
 
   useEffect(() => {
     if (retryAfterRemaining <= 0) return;
@@ -192,13 +230,28 @@ export function PairDeviceClient({ mode = 'login' }: { mode?: PairDeviceMode }) 
                     className="w-full rounded-[8px] border border-white/10 bg-black px-4 py-3 text-white outline-none transition placeholder:text-text-tertiary focus:border-purple-primary"
                   />
                 </div>
+                {renewalRequired && (
+                  <div className="rounded-[8px] border border-warning/30 bg-bg-tertiary p-4">
+                    <p className="font-medium text-warning">App registration required</p>
+                    <p className="mt-2 text-sm leading-6 text-text-tertiary">
+                      Open the Omi app on this phone and complete registration first. Once the app reaches the
+                      registered state, return here and send the portal registration request again.
+                    </p>
+                  </div>
+                )}
                 {error && <p className="text-sm text-error">{error}</p>}
                 <button
                   type="submit"
                   disabled={loading || retryAfterRemaining > 0}
                   className="w-full rounded-full bg-white px-5 py-3 font-medium text-black transition hover:bg-text-secondary disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {retryAfterRemaining > 0 ? `Try again in ${retryAfterRemaining}s` : loading ? pageCopy.loading : pageCopy.submit}
+                  {retryAfterRemaining > 0
+                    ? `Try again in ${retryAfterRemaining}s`
+                    : loading
+                      ? pageCopy.loading
+                      : renewalRequired
+                        ? 'Check app registration'
+                        : pageCopy.submit}
                 </button>
               </form>
             )}

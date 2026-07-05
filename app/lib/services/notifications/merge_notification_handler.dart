@@ -1,7 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
-
 import 'package:awesome_notifications/awesome_notifications.dart';
 
 import 'package:omi/app_globals.dart';
@@ -16,7 +14,7 @@ class MergeCompletedEvent {
   MergeCompletedEvent({required this.mergedConversationId, required this.removedConversationIds});
 }
 
-/// Handler for conversation merge FCM notifications
+/// Handler for conversation merge remote notifications.
 class MergeNotificationHandler {
   static final _awesomeNotifications = AwesomeNotifications();
 
@@ -27,7 +25,7 @@ class MergeNotificationHandler {
   /// Stream to listen for merge completed events
   static Stream<MergeCompletedEvent> get onMergeCompleted => _mergeCompletedController.stream;
 
-  /// Handle merge_completed FCM data message
+  /// Handle merge_completed remote data message.
   ///
   /// The app receives this when a background merge task completes.
   /// - Foreground: Provider will refresh and show toast

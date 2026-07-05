@@ -3,7 +3,7 @@
  * Connects to the Omi transcription API and streams audio data.
  */
 
-import { getIdToken, auth } from './firebase';
+import { getPlatformToken, getPortalUid } from './portalAuth';
 
 export interface TranscriptSegment {
   id: string;
@@ -74,6 +74,29 @@ export class TranscriptionSocket {
     }
   }
 
+  private markReady(): void {
+    if (this.isAuthenticated) {
+      return;
+    }
+
+    this.isAuthenticated = true;
+    this.pendingToken = null;
+    this.reconnectAttempts = 0;
+    this.isRefreshing = false;
+    this.options.onConnected();
+
+    // Start token refresh timer for long recordings.
+    this.startTokenRefresh();
+
+    // Stop buffering and flush buffered audio.
+    this.isBuffering = false;
+    if (this.audioBuffer.length > 0) {
+      const bufferedAudio = this.audioBuffer;
+      this.audioBuffer = [];
+      bufferedAudio.forEach((chunk) => this.sendAudio(chunk));
+    }
+  }
+
   /**
    * Reconnect with a fresh token to handle token expiration for long recordings.
    * This gracefully closes the current connection and opens a new one.
@@ -121,12 +144,12 @@ export class TranscriptionSocket {
     this.state = 'connecting';
 
     try {
-      const token = await getIdToken();
+      const token = await getPlatformToken();
       if (!token) {
         throw new Error('Not authenticated');
       }
 
-      const uid = auth.currentUser?.uid;
+      const uid = getPortalUid();
       if (!uid) {
         throw new Error('User ID not available');
       }
@@ -144,7 +167,7 @@ export class TranscriptionSocket {
       // Store token for first-message auth
       this.pendingToken = token;
 
-      const wsUrl = `${WS_BASE_URL}/v4/web/listen?${params.toString()}`;
+      const wsUrl = `${WS_BASE_URL}/v4/listen?${params.toString()}`;
 
       this.ws = new WebSocket(wsUrl);
 
@@ -174,7 +197,7 @@ export class TranscriptionSocket {
             this.ws?.close();
           }
         }
-        // Note: onConnected() and buffer flush happen after auth_response in handleMessage
+        // Note: onConnected() and buffer flush happen after the backend ready/auth message.
       };
 
       this.ws.onmessage = (event) => {
@@ -265,24 +288,14 @@ export class TranscriptionSocket {
             this.options.onSegment(segment);
           }
         }
+        // Handle preproduction compatibility ready response.
+        else if (data.type === 'service_status' && data.status === 'ready') {
+          this.markReady();
+        }
         // Handle auth response (first-message authentication)
         else if (data.type === 'auth_response') {
           if (data.success) {
-            this.isAuthenticated = true;
-            this.pendingToken = null;
-            this.reconnectAttempts = 0;
-            this.isRefreshing = false;
-            this.options.onConnected();
-
-            // Start token refresh timer for long recordings
-            this.startTokenRefresh();
-
-            // Stop buffering and flush buffered audio
-            this.isBuffering = false;
-            if (this.audioBuffer.length > 0) {
-              this.audioBuffer.forEach((chunk) => this.sendAudio(chunk));
-              this.audioBuffer = [];
-            }
+            this.markReady();
           } else {
             console.error('TranscriptionSocket: Auth failed');
             this.options.onError('Authentication failed');

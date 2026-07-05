@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:omi/app_globals.dart';
 import 'package:omi/services/auth_service.dart';
-import 'package:omi/services/notifications/notification_service.dart';
 import 'package:omi/utils/logger.dart';
 
 class PortalLoginRequestMonitor with WidgetsBindingObserver {
@@ -14,20 +14,24 @@ class PortalLoginRequestMonitor with WidgetsBindingObserver {
   static final PortalLoginRequestMonitor instance = PortalLoginRequestMonitor._();
 
   static const _pollInterval = Duration(seconds: 5);
+  static const _identityLookupTimeout = Duration(seconds: 6);
   static const _portalNotificationId = 84090;
+  static const portalNotificationChannelKey = 'portal_login_requests';
 
   Timer? _timer;
   OmiAuthDeviceIdentity? _identity;
   bool _started = false;
   bool _checking = false;
   bool _dialogOpen = false;
-  AppLifecycleState _lifecycleState = AppLifecycleState.resumed;
+  AppLifecycleState _lifecycleState = AppLifecycleState.detached;
   final Set<String> _seenRequests = <String>{};
   final Set<String> _notifiedRequests = <String>{};
 
   void start() {
     if (_started) return;
     _started = true;
+    Logger.debug('Portal login request monitor started');
+    _lifecycleState = WidgetsBinding.instance.lifecycleState ?? AppLifecycleState.detached;
     WidgetsBinding.instance.addObserver(this);
     _timer = Timer.periodic(_pollInterval, (_) => checkNow());
     unawaited(checkNow());
@@ -46,6 +50,7 @@ class PortalLoginRequestMonitor with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _lifecycleState = state;
     if (state == AppLifecycleState.resumed) {
+      Logger.debug('Portal login request monitor resumed; checking now');
       unawaited(checkNow());
     }
   }
@@ -56,12 +61,17 @@ class PortalLoginRequestMonitor with WidgetsBindingObserver {
 
     try {
       final identity = await _getIdentity();
-      if (identity == null || !identity.isComplete) return;
+      if (identity == null || !identity.isComplete) {
+        Logger.debug('Portal login request monitor has no complete phone/device identity');
+        return;
+      }
 
       final requests = await AuthService.instance.getPendingPortalLoginRequests(identity: identity);
       final pending = requests.where(_isActionableRequest).toList();
       if (pending.isEmpty) {
-        NotificationService.instance.clearNotification(_portalNotificationId);
+        _seenRequests.clear();
+        _notifiedRequests.clear();
+        AwesomeNotifications().cancel(_portalNotificationId);
         return;
       }
 
@@ -72,10 +82,10 @@ class PortalLoginRequestMonitor with WidgetsBindingObserver {
       });
 
       final request = pending.last;
+      Logger.debug('Portal login request monitor found ${pending.length} pending request(s); latest=${request.id}');
+      await _showSystemNotification(request);
       if (_isForeground) {
         await _showApprovalDialog(identity: identity, request: request);
-      } else {
-        await _showSystemNotification(request);
       }
     } catch (e) {
       Logger.debug('Portal login request monitor check failed: $e');
@@ -88,7 +98,13 @@ class PortalLoginRequestMonitor with WidgetsBindingObserver {
     final cached = _identity;
     if (cached != null && cached.isComplete) return cached;
 
-    final identity = await AuthService.instance.getOmiAuthDeviceIdentity();
+    OmiAuthDeviceIdentity identity;
+    try {
+      identity = await AuthService.instance.getOmiAuthDeviceIdentity().timeout(_identityLookupTimeout);
+    } on TimeoutException {
+      Logger.debug('Portal login request monitor identity lookup timed out');
+      return null;
+    }
     if (!identity.isComplete) return null;
     _identity = identity;
     return identity;
@@ -102,18 +118,45 @@ class PortalLoginRequestMonitor with WidgetsBindingObserver {
 
   bool get _isForeground => _lifecycleState == AppLifecycleState.resumed;
 
-  Future<void> _showSystemNotification(PortalLoginRequest request) async {
-    if (!_notifiedRequests.add(request.id)) return;
-
-    await NotificationService.instance.createNotification(
-      notificationId: _portalNotificationId,
-      title: 'Portal login request',
-      body: 'Open Omi to allow or decline this web portal login.',
-      payload: {
-        'navigate_to': 'portal_pairing',
-        'portal_request_id': request.id,
-      },
+  Future<void> _ensurePortalNotificationChannel() async {
+    await AwesomeNotifications().setChannel(
+      NotificationChannel(
+        channelKey: portalNotificationChannelKey,
+        channelName: 'Portal login requests',
+        channelDescription: 'Login approvals for the Omi web portal',
+        defaultColor: const Color(0xFF9D50DD),
+        ledColor: Colors.white,
+        importance: NotificationImportance.Max,
+        channelShowBadge: true,
+      ),
     );
+  }
+
+  Future<void> _showSystemNotification(PortalLoginRequest request) async {
+    if (_notifiedRequests.contains(request.id)) return;
+
+    final allowed = await AwesomeNotifications().isNotificationAllowed();
+    Logger.debug('Portal login request notification allowed: $allowed');
+    if (!allowed) return;
+
+    await _ensurePortalNotificationChannel();
+    await AwesomeNotifications().createNotification(
+      content: NotificationContent(
+        id: _portalNotificationId,
+        channelKey: portalNotificationChannelKey,
+        actionType: ActionType.Default,
+        title: 'Portal login request',
+        body: 'Open Omi to allow or decline this web portal login.',
+        payload: {
+          'navigate_to': 'portal_pairing',
+          'portal_request_id': request.id,
+        },
+        notificationLayout: NotificationLayout.Default,
+        wakeUpScreen: true,
+        category: NotificationCategory.Reminder,
+      ),
+    );
+    _notifiedRequests.add(request.id);
   }
 
   Future<void> _showApprovalDialog({
@@ -155,7 +198,7 @@ class PortalLoginRequestMonitor with WidgetsBindingObserver {
     final completed = approve
         ? await AuthService.instance.approvePortalPairingCode(identity: identity, pairingCode: request.id)
         : await AuthService.instance.declinePortalPairingCode(identity: identity, pairingCode: request.id);
-    NotificationService.instance.clearNotification(_portalNotificationId);
+    AwesomeNotifications().cancel(_portalNotificationId);
     if (!context.mounted) return;
     Navigator.of(context).pop();
     _showResultSnackBar(
@@ -176,7 +219,7 @@ class PortalLoginRequestMonitor with WidgetsBindingObserver {
   ) async {
     await AuthService.instance.declinePortalPairingCode(identity: identity, pairingCode: request.id);
     final status = await AuthService.instance.setPortalAccessLocked(identity: identity, locked: true);
-    NotificationService.instance.clearNotification(_portalNotificationId);
+    AwesomeNotifications().cancel(_portalNotificationId);
     if (!context.mounted) return;
     Navigator.of(context).pop();
     _showResultSnackBar(

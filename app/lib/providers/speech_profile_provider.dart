@@ -50,6 +50,7 @@ class SpeechProfileProvider extends ChangeNotifier
   double percentageCompleted = 0;
   bool uploadingProfile = false;
   bool profileCompleted = false;
+  bool _isFinalizingProfile = false;
   Timer? forceCompletionTimer;
 
   bool isInitialising = false;
@@ -243,7 +244,7 @@ class SpeechProfileProvider extends ChangeNotifier
 
   /// Stop phone microphone streaming
   void _stopPhoneMicStreaming() {
-    if (usePhoneMic) {
+    if (usePhoneMic && startedRecording) {
       Logger.debug('Stopping phone mic streaming');
       ServiceManager.instance().mic.stop();
     }
@@ -254,6 +255,7 @@ class SpeechProfileProvider extends ChangeNotifier
       if (uploadingProfile || profileCompleted) return;
 
       uploadingProfile = true;
+      _isFinalizingProfile = true;
       notifyListeners();
 
       _stopPhoneMicStreaming();
@@ -312,10 +314,14 @@ class SpeechProfileProvider extends ChangeNotifier
 
       uploadingProfile = false;
       profileCompleted = true;
+      _isFinalizingProfile = false;
       text = '';
       updateLoadingState(SpeechProfileLoadingState.allSet);
       notifyListeners();
     } finally {
+      if (!profileCompleted) {
+        _isFinalizingProfile = false;
+      }
       if (_finalizedCallback != null) {
         _finalizedCallback!();
       }
@@ -434,6 +440,7 @@ class SpeechProfileProvider extends ChangeNotifier
     percentageCompleted = 0;
     uploadingProfile = false;
     profileCompleted = false;
+    _isFinalizingProfile = false;
     usePhoneMic = false;
     _processConversationCallback = null;
 
@@ -484,6 +491,9 @@ class SpeechProfileProvider extends ChangeNotifier
   @override
   void onClosed([int? closeCode]) {
     Logger.debug('Speech profile socket closed with code: $closeCode');
+    if (_isFinalizingProfile || uploadingProfile || profileCompleted || closeCode == 1000) {
+      return;
+    }
     // Only notify error if we're still recording and not completed
     if (startedRecording && !profileCompleted && !uploadingProfile) {
       notifyError('SOCKET_DISCONNECTED');

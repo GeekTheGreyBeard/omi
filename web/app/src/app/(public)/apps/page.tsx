@@ -32,6 +32,8 @@ export const metadata: Metadata = {
   },
 };
 
+export const dynamic = 'force-dynamic';
+
 export default async function AppsMarketplacePage() {
   // Fetch ALL v2 apps by paginating through all capability groups
   // This makes multiple requests during build time but ensures all 600+ apps are available

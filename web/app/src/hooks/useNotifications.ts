@@ -12,9 +12,9 @@ import {
   getCurrentFCMToken,
   onForegroundMessage,
   getNotificationPermission,
-} from '@/lib/firebase';
+  type MessagePayload,
+} from '@/lib/portalAuth';
 import { registerFCMToken, unregisterFCMToken } from '@/lib/api';
-import type { MessagePayload } from 'firebase/messaging';
 
 // Constants
 const STORAGE_KEY = 'omi-notifications';
@@ -213,7 +213,7 @@ export function useNotifications(): UseNotificationsReturn {
       const stored = loadNotifications();
       setNotifications(stored);
 
-      // Check basic browser support (without triggering Firebase initialization)
+      // Check basic browser support without initializing a push provider.
       const hasNotificationSupport = typeof window !== 'undefined'
         && 'Notification' in window
         && 'serviceWorker' in navigator;

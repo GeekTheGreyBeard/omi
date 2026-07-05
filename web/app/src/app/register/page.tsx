@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { PairDeviceClient } from '../pair/PairDeviceClient';
+import { RegisterDeviceClient } from './RegisterDeviceClient';
 
 export const metadata: Metadata = {
   title: 'Register Device',
@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function RegisterDevicePage() {
-  return <PairDeviceClient mode="register" />;
+  return <RegisterDeviceClient />;
 }

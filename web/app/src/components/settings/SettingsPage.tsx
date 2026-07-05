@@ -90,9 +90,11 @@ import {
   upgradeSubscription,
   cancelSubscription,
   getCustomerPortal,
+  getEditableUserProfile,
+  updateEditableUserProfile,
 } from '@/lib/api';
 import { SUPPORTED_LANGUAGES, API_KEY_SCOPES } from '@/types/user';
-import type { DailySummarySettings, UserUsage, UserSubscription, AllUsageData, DeveloperWebhooks, DeveloperApiKey, McpApiKey, Integration, UsageHistoryPoint, PricingOption } from '@/types/user';
+import type { DailySummarySettings, UserUsage, UserSubscription, AllUsageData, DeveloperWebhooks, DeveloperApiKey, McpApiKey, Integration, UsageHistoryPoint, PricingOption, UserProfile } from '@/types/user';
 
 // ============================================================================
 // Types
@@ -365,6 +367,8 @@ function ConfirmDialog({
 
 function ProfileSection({
   user,
+  profile,
+  onProfileSave,
   onCopyUserId,
   language,
   vocabulary,
@@ -376,6 +380,8 @@ function ProfileSection({
   onDailySummaryHourChange,
 }: {
   user: any;
+  profile: UserProfile | null;
+  onProfileSave: (profile: Partial<UserProfile>) => Promise<void>;
   onCopyUserId: () => void;
   language: string;
   vocabulary: string[];
@@ -388,6 +394,14 @@ function ProfileSection({
 }) {
   const [copiedUserId, setCopiedUserId] = useState(false);
   const [newWord, setNewWord] = useState('');
+  const [profileName, setProfileName] = useState('');
+  const [profileEmail, setProfileEmail] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  useEffect(() => {
+    setProfileName(profile?.name || user?.displayName || '');
+    setProfileEmail(profile?.email || user?.email || '');
+  }, [profile, user?.displayName, user?.email]);
 
   const handleCopy = () => {
     onCopyUserId();
@@ -407,6 +421,19 @@ function ProfileSection({
     label: l.name,
   }));
 
+  const handleProfileSave = async () => {
+    if (!profileName.trim()) return;
+    setIsSavingProfile(true);
+    try {
+      await onProfileSave({
+        name: profileName.trim(),
+        email: profileEmail.trim(),
+      });
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* Account Info */}
@@ -425,15 +452,59 @@ function ProfileSection({
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-text-tertiary text-2xl font-medium">
-                  {user?.displayName?.charAt(0) || 'U'}
+                  {(profile?.name || user?.displayName)?.charAt(0) || 'U'}
                 </div>
               )}
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="text-lg font-semibold text-text-primary truncate">
-                {user?.displayName || 'User'}
+                {profile?.name || user?.displayName || 'User'}
               </h3>
-              <p className="text-text-tertiary truncate">{user?.email}</p>
+              <p className="text-text-tertiary truncate">{profile?.email || user?.email}</p>
+            </div>
+          </div>
+        </Card>
+
+        <Card>
+          <div className="space-y-4">
+            <SettingRow label="Name" description="How your profile appears across Omi">
+              <input
+                type="text"
+                value={profileName}
+                onChange={(event) => setProfileName(event.target.value)}
+                className={cn(
+                  'w-full max-w-xs px-4 py-2.5 rounded-xl',
+                  'bg-bg-tertiary border border-white/[0.06]',
+                  'text-text-primary placeholder:text-text-quaternary',
+                  'focus:outline-none focus:border-purple-500'
+                )}
+              />
+            </SettingRow>
+            <SettingRow label="Email" description="Account contact email">
+              <input
+                type="email"
+                value={profileEmail}
+                onChange={(event) => setProfileEmail(event.target.value)}
+                className={cn(
+                  'w-full max-w-xs px-4 py-2.5 rounded-xl',
+                  'bg-bg-tertiary border border-white/[0.06]',
+                  'text-text-primary placeholder:text-text-quaternary',
+                  'focus:outline-none focus:border-purple-500'
+                )}
+              />
+            </SettingRow>
+            <div className="flex justify-end">
+              <button
+                onClick={handleProfileSave}
+                disabled={isSavingProfile || !profileName.trim()}
+                className={cn(
+                  'px-4 py-2 rounded-xl font-medium transition-colors',
+                  'bg-purple-500 text-white hover:bg-purple-600',
+                  'disabled:opacity-50 disabled:cursor-not-allowed'
+                )}
+              >
+                {isSavingProfile ? 'Saving...' : 'Save Profile'}
+              </button>
             </div>
           </div>
         </Card>
@@ -2548,21 +2619,6 @@ function AccountSection({
         </Card>
       </div>
 
-      {/* Support */}
-      <div id="support" className="space-y-3 scroll-mt-4">
-        <h3 className="text-sm font-medium text-text-tertiary uppercase tracking-wider">Support</h3>
-        <Card>
-          <a
-            href="https://feedback.omi.me"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-between py-3 text-text-primary hover:text-purple-400 transition-colors"
-          >
-            <span>Feedback & Bug Reports</span>
-            <ExternalLink className="w-4 h-4" />
-          </a>
-        </Card>
-      </div>
     </div>
   );
 }
@@ -2601,6 +2657,7 @@ export function SettingsPage() {
   const [language, setLanguage] = useState('en');
   const [vocabulary, setVocabulary] = useState<string[]>([]);
   const [dailySummary, setDailySummary] = useState<DailySummarySettings>({ enabled: true, hour: 22 });
+  const [editableProfile, setEditableProfile] = useState<UserProfile | null>(null);
   const [recordingPermission, setRecordingPermissionState] = useState(false);
   const [trainingDataOptIn, setTrainingDataOptInState] = useState(false);
   const [allUsage, setAllUsage] = useState<AllUsageData | null>(null);
@@ -2626,11 +2683,13 @@ export function SettingsPage() {
       try {
         switch (section) {
           case 'profile':
-            const [lang, vocab, summary] = await Promise.all([
+            const [profile, lang, vocab, summary] = await Promise.all([
+              getEditableUserProfile().catch(() => null),
               getUserLanguage().catch(() => 'en'),
               getCustomVocabulary().catch(() => []),
               getDailySummarySettings().catch(() => ({ enabled: true, hour: 22 })),
             ]);
+            setEditableProfile(profile);
             setLanguage(lang);
             setVocabulary(vocab);
             setDailySummary(summary);
@@ -2755,6 +2814,19 @@ export function SettingsPage() {
       await updateDailySummarySettings({ ...dailySummary, hour });
     } catch {
       setDailySummary(oldSettings);
+    }
+  };
+
+  const handleProfileSave = async (profile: Partial<UserProfile>) => {
+    const oldProfile = editableProfile;
+    setEditableProfile({ ...(editableProfile || { uid: user?.uid || '', email: '', name: '' }), ...profile });
+    try {
+      const savedProfile = await updateEditableUserProfile(profile);
+      setEditableProfile(savedProfile);
+      showToast('Profile saved', 'success');
+    } catch {
+      setEditableProfile(oldProfile);
+      showToast('Could not save profile', 'error');
     }
   };
 
@@ -2923,6 +2995,8 @@ export function SettingsPage() {
         return (
           <ProfileSection
             user={user}
+            profile={editableProfile}
+            onProfileSave={handleProfileSave}
             onCopyUserId={handleCopyUserId}
             language={language}
             vocabulary={vocabulary}

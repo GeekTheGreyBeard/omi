@@ -12,7 +12,7 @@ class PlatformService {
   static bool get isAnalyticsSupported => !(kIsWeb);
   static bool get isNotificationSupported => true;
   static bool get isIntercomSupported => true;
-  static bool get isCrashlyticsSupported => true;
+  static bool get isCrashReportingSupported => true;
 
   /// Execute a function only if the platform supports it
   static T? executeIfSupported<T>(bool isSupported, T Function() function, {T? fallback}) {

@@ -49,7 +49,7 @@ class AppleRemindersService {
     }
   }
 
-  /// Trigger native sync from foreground when FCM data message is received.
+  /// Trigger native sync from foreground when a remote data message is received.
   Future<void> triggerSyncFromFCM(Map<String, dynamic> data) async {
     if (!isAvailable) return;
     try {
@@ -66,7 +66,7 @@ class AppleRemindersService {
         }),
       );
     } catch (e) {
-      Logger.debug('Error triggering sync from FCM: $e');
+      Logger.debug('Error triggering reminder sync from remote message: $e');
     }
   }
 

@@ -73,50 +73,10 @@ function generate_ios_custom_config() {
 }
 
 ######################################
-# Setup Firebase with prebuilt configs
+# Setup platform-owned identity configs
 ######################################
-function setup_firebase() {
-  mkdir -p android/app/src/dev/ ios/Config/Dev/ ios/Runner/
-  cp setup/prebuilt/firebase_options.dart lib/firebase_options_dev.dart
-  cp setup/prebuilt/google-services.json android/app/src/dev/
-  cp setup/prebuilt/GoogleService-Info.plist ios/Config/Dev/
-  cp setup/prebuilt/GoogleService-Info.plist ios/Runner/
-
-  # Warn: Mocking, should remove
-  mkdir -p android/app/src/prod/ ios/Config/Prod/
-  cp setup/prebuilt/firebase_options.dart lib/firebase_options_prod.dart
-  cp setup/prebuilt/google-services.json android/app/src/prod/
-  cp setup/prebuilt/GoogleService-Info.plist ios/Config/Prod/
-}
-
-##########################################
-# Setup Firebase with Service Account Json
-##########################################
-function setup_firebase_with_service_account() {
-  dart pub global activate flutterfire_cli
-  flutterfire config \
-    --platforms="android,ios,web" \
-    --out=lib/firebase_options_dev.dart \
-    --ios-bundle-id=com.friend-app-with-wearable.ios12.development \
-    --android-app-id=com.friend.ios.dev \
-    --android-out=android/app/src/dev/  \
-    --ios-out=ios/Config/Dev/ \
-    --service-account="$FIREBASE_SERVICE_ACCOUNT_KEY" \
-    --project="based-hardware-dev" \
-    --ios-target="Runner" \
-    --yes
-
-  flutterfire config \
-    --platforms="android,ios,web" \
-    --out=lib/firebase_options_prod.dart \
-    --ios-bundle-id=com.friend-app-with-wearable.ios12 \
-    --android-app-id=com.friend.ios.dev \
-    --android-out=android/app/src/prod/ \
-    --ios-out=ios/Config/Prod/ \
-    --service-account="$FIREBASE_SERVICE_ACCOUNT_KEY" \
-    --project="based-hardware-dev" \
-    --ios-target="Runner" \
-    --yes
+function setup_platform_identity() {
+  mkdir -p android/app/src/dev/ android/app/src/prod/ ios/Config/Dev/ ios/Config/Prod/ ios/Runner/
 }
 
 ######################################
@@ -173,14 +133,14 @@ function run_build_ios() {
 
 case "${1}" in
   ios)
-      setup_firebase \
+      setup_platform_identity \
       && generate_ios_custom_config \
       && setup_app_env \
       && run_build_ios
     ;;
   android)
     setup_keystore_android \
-      && setup_firebase \
+      && setup_platform_identity \
       && setup_app_env \
       && run_build_android
     ;;

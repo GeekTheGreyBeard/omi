@@ -43,6 +43,7 @@ class OmiBackgroundAudioStreamer(private val context: Context) {
         val sampleRate: Int,
         val source: String,
         val apiBaseUrl: String,
+        val transcriptionWsBaseUrl: String,
         val serviceUuid: String,
         val characteristicUuid: String,
         val deviceType: String
@@ -284,6 +285,7 @@ class OmiBackgroundAudioStreamer(private val context: Context) {
                 sampleRate = json.optInt("sampleRate", 16000),
                 source = json.optString("source"),
                 apiBaseUrl = json.optString("apiBaseUrl"),
+                transcriptionWsBaseUrl = json.optString("transcriptionWsBaseUrl"),
                 serviceUuid = serviceUuid,
                 characteristicUuid = characteristicUuid,
                 deviceType = json.optString("deviceType")
@@ -297,18 +299,19 @@ class OmiBackgroundAudioStreamer(private val context: Context) {
     private fun buildRequest(url: String): Request? {
         val token = stringPref("authToken")
         if (token.isEmpty()) {
-            Log.w(TAG, "Cannot open background transcription socket without auth token")
-            return null
+            Log.w(TAG, "Opening background transcription socket without auth token")
         }
 
-        return Request.Builder()
+        val builder = Request.Builder()
             .url(url)
-            .header("Authorization", "Bearer $token")
             .header("X-Request-Start-Time", (System.currentTimeMillis().toDouble() / 1000.0).toString())
             .header("X-App-Platform", "android")
             .header("X-Device-Id-Hash", stringPref("deviceIdHash"))
             .header("X-App-Version", BuildConfig.VERSION_NAME)
-            .build()
+        if (token.isNotEmpty()) {
+            builder.header("Authorization", "Bearer $token")
+        }
+        return builder.build()
     }
 
     private fun buildUrl(config: Config): String? {
@@ -325,7 +328,7 @@ class OmiBackgroundAudioStreamer(private val context: Context) {
         }
         val sttService = stringPref("transcriptionModel3", "soniox").ifEmpty { "soniox" }
         val timeout = intPref("conversationSilenceDuration", 120).takeIf { it > 0 } ?: 120
-        val base = normalizeBaseUrl(config.apiBaseUrl.ifEmpty { DEFAULT_API_BASE_URL })
+        val listenUrl = normalizeListenUrl(config.transcriptionWsBaseUrl.ifEmpty { config.apiBaseUrl }.ifEmpty { DEFAULT_API_BASE_URL })
 
         val params = mutableListOf(
             "language=${enc(language)}",
@@ -344,22 +347,24 @@ class OmiBackgroundAudioStreamer(private val context: Context) {
             params.add("vad_gate=enabled")
         }
 
-        return "${base}v4/listen?${params.joinToString("&")}"
+        return "$listenUrl?${params.joinToString("&")}"
     }
 
-    private fun normalizeBaseUrl(value: String): String {
+    private fun normalizeListenUrl(value: String): String {
         var base = value.trim().ifEmpty { DEFAULT_API_BASE_URL }
         val lowerBase = base.lowercase(Locale.US)
         if (lowerBase.startsWith("wss://") || lowerBase.startsWith("ws://")) {
             base = lowerBase.substringBefore("://") + "://" + base.substringAfter("://")
-            return if (base.endsWith("/")) base else "$base/"
+            base = base.trimEnd('/')
+            return if (base.endsWith("/v4/listen")) base else "$base/v4/listen"
         }
         base = when {
             lowerBase.startsWith("https://") -> "wss://" + base.substring("https://".length)
             lowerBase.startsWith("http://") -> "ws://" + base.substring("http://".length)
             else -> "wss://$base"
         }
-        return if (base.endsWith("/")) base else "$base/"
+        base = base.trimEnd('/')
+        return if (base.endsWith("/v4/listen")) base else "$base/v4/listen"
     }
 
     private fun prefs() = context.getSharedPreferences(FLUTTER_PREFS, Context.MODE_PRIVATE)

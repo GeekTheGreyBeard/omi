@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerApiBaseUrl } from '@/lib/server/apiBase';
 
-const API_BASE_URL = process.env.SERVER_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'https://omi.splat-i.io';
+export const dynamic = 'force-dynamic';
 
 /**
  * API Proxy to avoid CORS issues during development
@@ -41,7 +42,7 @@ async function handleRequest(
   try {
     const path = params.path.join('/');
     const searchParams = request.nextUrl.searchParams.toString();
-    const url = `${API_BASE_URL}/${path}${searchParams ? `?${searchParams}` : ''}`;
+    const url = `${getServerApiBaseUrl()}/${path}${searchParams ? `?${searchParams}` : ''}`;
 
     // Get auth header from incoming request
     const authHeader = request.headers.get('Authorization');

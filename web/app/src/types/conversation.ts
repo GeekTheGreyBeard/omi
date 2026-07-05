@@ -167,6 +167,50 @@ export interface Memory {
 }
 
 // =============================================================================
+// Review Inbox Types
+// =============================================================================
+
+export type ReviewItemType = 'memory' | 'action';
+export type ReviewItemStatus = 'pending' | 'approved' | 'rejected';
+
+export interface ReviewItemSource {
+  conversation_id?: string | null;
+  conversation_title?: string | null;
+  app_id?: string | null;
+  app_name?: string | null;
+}
+
+export interface ReviewItem {
+  id: string;
+  type: ReviewItemType;
+  status: ReviewItemStatus;
+  title?: string | null;
+  content: string;
+  proposed_content?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+  due_at?: string | null;
+  confidence?: number | null;
+  tags?: string[];
+  source?: ReviewItemSource | null;
+  raw?: Memory | ActionItem | Record<string, unknown>;
+}
+
+export interface ReviewInboxSummary {
+  pending: number;
+  memories: number;
+  actions: number;
+  approved_today?: number;
+  rejected_today?: number;
+}
+
+export interface ReviewInboxResponse {
+  items: ReviewItem[];
+  summary: ReviewInboxSummary;
+  has_more: boolean;
+}
+
+// =============================================================================
 // Knowledge Graph Types
 // =============================================================================
 

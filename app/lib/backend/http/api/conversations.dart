@@ -91,13 +91,55 @@ Future<({List<ServerConversation> items, bool ok})> getConversationsResult({
   if (response.statusCode == 200) {
     // decode body bytes to utf8 string and then parse json so as to avoid utf8 char issues
     var body = utf8.decode(response.bodyBytes);
-    var memories =
-        (jsonDecode(body) as List<dynamic>).map((conversation) => ServerConversation.fromJson(conversation)).toList();
+    List<ServerConversation> memories;
+    try {
+      memories = parseConversationsResponseBody(body);
+    } catch (e, stackTrace) {
+      Logger.debug('getConversations decode error $e');
+      PlatformManager.instance.crashReporter.reportCrash(e, stackTrace);
+      return (items: <ServerConversation>[], ok: false);
+    }
     Logger.debug('getConversations length: ${memories.length}');
     return (items: memories, ok: true);
   }
   Logger.debug('getConversations error ${response.statusCode}');
   return (items: <ServerConversation>[], ok: false);
+}
+
+@visibleForTesting
+List<ServerConversation> parseConversationsResponseBody(String body) {
+  final decoded = jsonDecode(body);
+  final rawConversations = _extractConversationList(decoded);
+  final memories = <ServerConversation>[];
+  for (final conversation in rawConversations) {
+    if (conversation is! Map) {
+      Logger.debug('getConversations skipped non-object item: ${conversation.runtimeType}');
+      continue;
+    }
+    try {
+      memories.add(ServerConversation.fromJson(Map<String, dynamic>.from(conversation)));
+    } catch (e) {
+      Logger.debug('getConversations skipped malformed conversation: $e');
+    }
+  }
+  return memories;
+}
+
+List<dynamic> _extractConversationList(dynamic decoded) {
+  if (decoded is List<dynamic>) return decoded;
+  if (decoded is Map<String, dynamic>) {
+    final candidates = [
+      decoded['conversations'],
+      decoded['items'],
+      decoded['memories'],
+      decoded['data'],
+      decoded['results'],
+    ];
+    for (final candidate in candidates) {
+      if (candidate is List<dynamic>) return candidate;
+    }
+  }
+  throw const FormatException('Unexpected conversations response shape');
 }
 
 Future<ServerConversation?> reProcessConversationServer(String conversationId, {String? appId}) async {
@@ -355,7 +397,7 @@ Future<bool> setConversationStarred(String conversationId, bool starred) async {
 }
 
 Future<bool> setConversationActionItemState(String conversationId, List<int> actionItemsIdx, List<bool> values) async {
-  print(jsonEncode({'items_idx': actionItemsIdx, 'values': values, 'conversation_id': conversationId}));
+  Logger.debug(jsonEncode({'items_idx': actionItemsIdx, 'values': values, 'conversation_id': conversationId}));
   var response = await makeApiCall(
     url: '${Env.apiBaseUrl}v1/conversations/$conversationId/action-items',
     headers: {},

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:collection/collection.dart';
 
 import 'package:omi/backend/http/shared.dart';
+import 'package:omi/backend/preferences.dart';
 import 'package:omi/backend/schema/daily_summary.dart';
 import 'package:omi/backend/schema/geolocation.dart';
 import 'package:omi/backend/schema/person.dart';
@@ -22,6 +23,68 @@ Future<bool> updateUserGeolocation({required Geolocation geolocation}) async {
   if (response == null) return false;
   if (response.statusCode == 200) return true;
   return false;
+}
+
+Future<Map<String, dynamic>?> getEditableUserProfile() async {
+  var response = await makeApiCall(
+    url: '${Env.apiBaseUrl}v1/users/profile',
+    headers: {},
+    method: 'GET',
+    body: '',
+  );
+  if (response == null || response.statusCode != 200) return null;
+  return jsonDecode(response.body) as Map<String, dynamic>;
+}
+
+void applyEditableUserProfileToPreferences(Map<String, dynamic> profile) {
+  final fullName = (profile['name'] as String?)?.trim() ?? '';
+  final givenName = (profile['given_name'] as String?)?.trim() ?? '';
+  final familyName = (profile['family_name'] as String?)?.trim() ?? '';
+  final email = (profile['email'] as String?)?.trim() ?? '';
+
+  if (email.isNotEmpty) SharedPreferencesUtil().email = email;
+  if (givenName.isNotEmpty) {
+    SharedPreferencesUtil().givenName = givenName;
+    SharedPreferencesUtil().familyName = familyName;
+    return;
+  }
+  if (fullName.isNotEmpty) {
+    final parts = fullName.split(RegExp(r'\s+'));
+    SharedPreferencesUtil().givenName = parts.first;
+    SharedPreferencesUtil().familyName = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+  }
+}
+
+Future<Map<String, dynamic>?> refreshEditableUserProfilePreferences() async {
+  final profile = await getEditableUserProfile();
+  if (profile != null) applyEditableUserProfileToPreferences(profile);
+  return profile;
+}
+
+Future<Map<String, dynamic>?> updateEditableUserProfile({
+  String? fullName,
+  String? givenName,
+  String? familyName,
+  String? email,
+}) async {
+  final body = <String, dynamic>{};
+  if (fullName != null) body['name'] = fullName;
+  if (givenName != null) body['given_name'] = givenName;
+  if (familyName != null) body['family_name'] = familyName;
+  if (email != null) body['email'] = email;
+
+  var response = await makeApiCall(
+    url: '${Env.apiBaseUrl}v1/users/profile',
+    headers: {'Content-Type': 'application/json'},
+    method: 'PATCH',
+    body: jsonEncode(body),
+  );
+  if (response == null) return null;
+  Logger.debug('updateEditableUserProfile response: ${response.body}');
+  if (response.statusCode != 200) return null;
+  final profile = jsonDecode(response.body) as Map<String, dynamic>;
+  applyEditableUserProfileToPreferences(profile);
+  return profile;
 }
 
 Future<bool> setUserWebhookUrl({required String type, required String url}) async {
@@ -142,7 +205,7 @@ Future<bool> deletePermissionAndRecordings() async {
   return response.statusCode == 200;
 }
 
-/**/
+//
 
 Future<bool> setPrivateCloudSyncEnabled(bool value) async {
   var response = await makeApiCall(
@@ -611,9 +674,9 @@ Future<String?> generateDailySummary({String? date}) async {
 // Onboarding State
 
 Future<Map<String, dynamic>?> getUserOnboardingState() async {
-  print('DEBUG getUserOnboardingState: calling ${Env.apiBaseUrl}v1/users/onboarding');
+  Logger.debug('DEBUG getUserOnboardingState: calling ${Env.apiBaseUrl}v1/users/onboarding');
   var response = await makeApiCall(url: '${Env.apiBaseUrl}v1/users/onboarding', headers: {}, method: 'GET', body: '');
-  print('DEBUG getUserOnboardingState: response=${response?.statusCode}, body=${response?.body}');
+  Logger.debug('DEBUG getUserOnboardingState: response=${response?.statusCode}, body=${response?.body}');
   if (response == null) return null;
   if (response.statusCode == 200) {
     return jsonDecode(response.body);

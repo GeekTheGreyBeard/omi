@@ -64,17 +64,39 @@ class TranscriptSegment {
   // Factory constructor to create a new Message instance from a map
   factory TranscriptSegment.fromJson(Map<String, dynamic> json) {
     return TranscriptSegment(
-      id: (json['id'] ?? '') as String,
-      text: json['text'] as String,
-      speaker: (json['speaker'] ?? 'SPEAKER_00') as String,
-      isUser: (json['is_user'] ?? false) as bool,
-      personId: json['person_id'],
+      id: (json['id'] ?? '').toString(),
+      text: (json['text'] ?? json['transcript'] ?? json['content'] ?? '').toString(),
+      speaker: _parseSpeaker(json),
+      isUser: _parseBool(json['is_user']),
+      personId: json['person_id']?.toString(),
       start: double.tryParse(json['start'].toString()) ?? 0.0,
       end: double.tryParse(json['end'].toString()) ?? 0.0,
       translations: json['translations'] != null ? Translation.fromJsonList(json['translations'] as List<dynamic>) : [],
-      speechProfileProcessed: (json['speech_profile_processed'] ?? true) as bool,
+      speechProfileProcessed: _parseBool(json['speech_profile_processed'], defaultValue: true),
       sttProvider: json['stt_provider'] as String?,
     );
+  }
+
+  static String _parseSpeaker(Map<String, dynamic> json) {
+    final rawSpeaker = json['speaker'] ?? json['speaker_id'];
+    if (rawSpeaker is num) {
+      return 'SPEAKER_${rawSpeaker.toInt().toString().padLeft(2, '0')}';
+    }
+    if (rawSpeaker is String) {
+      final parsedSpeakerId = int.tryParse(rawSpeaker);
+      if (parsedSpeakerId != null) {
+        return 'SPEAKER_${parsedSpeakerId.toString().padLeft(2, '0')}';
+      }
+      return rawSpeaker;
+    }
+    return 'SPEAKER_00';
+  }
+
+  static bool _parseBool(dynamic value, {bool defaultValue = false}) {
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) return value.toLowerCase() == 'true';
+    return defaultValue;
   }
 
   // Method to convert a Message instance into a map
@@ -94,7 +116,19 @@ class TranscriptSegment {
   static List<TranscriptSegment> fromJsonList(List<dynamic> jsonList) {
     final List<TranscriptSegment> segments = [];
     for (int i = 0; i < jsonList.length; i++) {
-      final segment = TranscriptSegment.fromJson(jsonList[i]);
+      final item = jsonList[i];
+      final segment = item is Map
+          ? TranscriptSegment.fromJson(Map<String, dynamic>.from(item))
+          : TranscriptSegment(
+              id: '',
+              text: item?.toString() ?? '',
+              speaker: 'SPEAKER_00',
+              isUser: false,
+              personId: null,
+              start: 0.0,
+              end: 0.0,
+              translations: [],
+            );
       segment.idx = i;
       segments.add(segment);
     }

@@ -17,6 +17,9 @@ class MobileApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<AuthenticationProvider>(
       builder: (context, authProvider, child) {
+        if (SharedPreferencesUtil().splatIRegistrationRenewalRequired) {
+          return const DeviceSelectionPage();
+        }
         if (authProvider.isSignedIn()) {
           // Returning users who haven't yet given consent under the new
           // model must see the consent screen before any AI processing

@@ -32,7 +32,7 @@ class AuthTokenUnavailableException implements Exception {
 
 // Normal-mode connectivity failures on mobile (no network, DNS failure,
 // connection reset, TLS handshake during reconnect, request timeout). Reporting
-// these to Crashlytics drowns out real signal — caller logs them locally and
+// these to crash reporting drowns out real signal — caller logs them locally and
 // either returns null or rethrows for the upstream sync state machine.
 bool _isTransientNetworkError(Object e) {
   if (e is SocketException) return true;
@@ -61,7 +61,7 @@ Future<String> getAuthHeader() async {
       (expiry.isBefore(DateTime.now().add(const Duration(minutes: 5))) && expiry.isAfter(DateTime.now())));
 
   if (!hasAuthToken || !isExpirationDateValid) {
-    final refreshedToken = await AuthService.instance.getIdToken();
+    final refreshedToken = await AuthService.instance.getPlatformToken();
     if (refreshedToken != null) {
       SharedPreferencesUtil().authToken = refreshedToken;
     } else if (expiry.isBefore(DateTime.now())) {
@@ -106,7 +106,7 @@ Future<Map<String, String>> buildHeaders({
       // transient or degraded reason). Proceed without Authorization; the
       // downstream HTTP 401 path in makeApiCall already calls
       // AuthService.signOut(), so recovery runs where it was already wired.
-      // We avoid forcing sign-out here because getIdToken() treats generic
+      // We avoid forcing sign-out here because getPlatformToken() treats generic
       // failures as transient (e.g. offline / platform hiccups) and leaves
       // currentUser intact.
       Logger.debug('No auth token available for request, proceeding without Authorization header');
@@ -165,7 +165,7 @@ Future<http.Response?> makeApiCall({
 
     if (requireAuthCheck && response.statusCode == 401) {
       Logger.log('Token expired on 1st attempt');
-      SharedPreferencesUtil().authToken = await AuthService.instance.getIdToken() ?? '';
+      SharedPreferencesUtil().authToken = await AuthService.instance.getPlatformToken() ?? '';
       if (SharedPreferencesUtil().authToken.isNotEmpty) {
         builtHeaders = await buildHeaders(requireAuthCheck: requireAuthCheck, fromHeaders: headers);
         response = await HttpPoolManager.instance.send(
@@ -308,7 +308,7 @@ Future<http.Response> makeMultipartApiCall({
 
     if (requireAuthCheck && response.statusCode == 401) {
       Logger.log('Token expired on 1st multipart attempt');
-      SharedPreferencesUtil().authToken = await AuthService.instance.getIdToken() ?? '';
+      SharedPreferencesUtil().authToken = await AuthService.instance.getPlatformToken() ?? '';
       if (SharedPreferencesUtil().authToken.isNotEmpty) {
         builtHeaders = await buildHeaders(requireAuthCheck: requireAuthCheck, fromHeaders: headers);
         request = await _buildMultipartRequest(
@@ -382,7 +382,7 @@ Future<http.Response> makeMultipartApiCallUnpooled({
 
     if (requireAuthCheck && response.statusCode == 401) {
       Logger.log('Token expired on 1st unpooled multipart attempt');
-      SharedPreferencesUtil().authToken = await AuthService.instance.getIdToken() ?? '';
+      SharedPreferencesUtil().authToken = await AuthService.instance.getPlatformToken() ?? '';
       if (SharedPreferencesUtil().authToken.isNotEmpty) {
         builtHeaders = await buildHeaders(requireAuthCheck: requireAuthCheck, fromHeaders: headers);
         request = await _buildMultipartRequest(
@@ -514,7 +514,7 @@ Stream<String> makeMultipartStreamingApiCall({
 
     if (requireAuthCheck && response.statusCode == 401) {
       Logger.log('Token expired on 1st multipart streaming attempt');
-      SharedPreferencesUtil().authToken = await AuthService.instance.getIdToken() ?? '';
+      SharedPreferencesUtil().authToken = await AuthService.instance.getPlatformToken() ?? '';
       if (SharedPreferencesUtil().authToken.isNotEmpty) {
         builtHeaders = await buildHeaders(requireAuthCheck: requireAuthCheck, fromHeaders: headers);
         request = await _buildMultipartRequest(

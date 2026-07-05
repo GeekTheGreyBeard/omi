@@ -24,6 +24,7 @@ export function InlineVoiceRecorder({ onTranscript, disabled }: InlineVoiceRecor
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const audioMimeTypeRef = useRef<string>('application/octet-stream');
   const streamRef = useRef<MediaStream | null>(null);
   const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -73,10 +74,17 @@ export function InlineVoiceRecorder({ onTranscript, disabled }: InlineVoiceRecor
       streamRef.current = stream;
 
       // Start recording
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4',
-      });
+      const preferredMimeType = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+        'audio/ogg;codecs=opus',
+      ].find(type => MediaRecorder.isTypeSupported(type));
+      const mediaRecorder = preferredMimeType
+        ? new MediaRecorder(stream, { mimeType: preferredMimeType })
+        : new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
+      audioMimeTypeRef.current = mediaRecorder.mimeType || preferredMimeType || 'application/octet-stream';
       audioChunksRef.current = [];
 
       mediaRecorder.ondataavailable = (event) => {
@@ -91,7 +99,7 @@ export function InlineVoiceRecorder({ onTranscript, disabled }: InlineVoiceRecor
         streamRef.current = null;
 
         // Process audio
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const audioBlob = new Blob(audioChunksRef.current, { type: audioMimeTypeRef.current });
         await processAudio(audioBlob);
       };
 

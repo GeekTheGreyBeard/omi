@@ -1,5 +1,3 @@
-import 'package:flutter/material.dart';
-
 import 'package:awesome_notifications/awesome_notifications.dart';
 
 import 'package:omi/app_globals.dart';
@@ -119,7 +117,7 @@ class ActionItemNotificationHandler {
   }
 
   /// Handle bulk action item deletion data message. Backend packs ids into a
-  /// comma-joined string because FCM data values must be strings; we just
+  /// comma-joined string because remote notification values must be strings; we just
   /// fan out cancellation client-side — no network involved.
   static Future<void> handleBatchDeletionMessage(Map<String, dynamic> data) async {
     final raw = data['ids'];

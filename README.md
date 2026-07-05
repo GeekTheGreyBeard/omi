@@ -172,3 +172,7 @@ Open-source AI wearables that pair with the mobile app for 24h+ continuous captu
 ## License
 
 MIT — see [LICENSE](LICENSE)
+
+## Internal Documentation
+
+Obsidian documentation: `OpenClaw/Projects/omiFrontendRebuild-staging/`

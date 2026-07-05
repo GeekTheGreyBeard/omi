@@ -12,8 +12,7 @@ type Props = {
   params: Promise<{ category: string }>;
 };
 
-// ISR configuration
-export const revalidate = 300; // Revalidate every 5 minutes
+export const dynamic = 'force-dynamic';
 export const dynamicParams = true; // Allow non-pre-rendered categories
 
 // Pre-generate top categories from v2 (by app count)

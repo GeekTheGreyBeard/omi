@@ -571,6 +571,14 @@ class SharedPreferencesUtil {
 
   set tokenExpirationTime(int value) => saveInt('tokenExpirationTime', value);
 
+  String get splatIAccountPhoneNumber => getString('splatIAccountPhoneNumber');
+
+  set splatIAccountPhoneNumber(String value) => saveString('splatIAccountPhoneNumber', value);
+
+  bool get splatIRegistrationRenewalRequired => getBool('splatIRegistrationRenewalRequired');
+
+  set splatIRegistrationRenewalRequired(bool value) => saveBool('splatIRegistrationRenewalRequired', value);
+
   String get email => getString('email');
 
   set email(String value) => saveString('email', value);

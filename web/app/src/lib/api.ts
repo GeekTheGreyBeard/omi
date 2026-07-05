@@ -1,4 +1,4 @@
-import { getIdToken } from './firebase';
+import { getPlatformToken } from './portalAuth';
 import {
   invalidateCache,
   invalidationPatterns,
@@ -20,6 +20,10 @@ import type {
   MessageChunkType,
   MessageFile,
   AudioFileUrlInfo,
+  ReviewInboxResponse,
+  ReviewItem,
+  ReviewItemStatus,
+  ReviewItemType,
 } from '@/types/conversation';
 import type {
   App,
@@ -35,6 +39,7 @@ import type {
   NotificationScope,
   PaymentPlan,
 } from '@/types/apps';
+import type { UserProfile } from '@/types/user';
 
 // Always use proxy to avoid CORS (browser to proxy to the configured Splat-I Omi backend)
 const API_BASE_URL = '/api/proxy';
@@ -46,7 +51,7 @@ async function fetchWithAuth<T>(endpoint: string, options: RequestInit = {}): Pr
   let token: string | null = null;
 
   try {
-    token = await getIdToken();
+    token = await getPlatformToken();
   } catch (tokenError) {
     console.error('Failed to get auth token:', tokenError);
     throw new Error('Failed to get authentication token');
@@ -97,6 +102,17 @@ async function fetchWithAuth<T>(endpoint: string, options: RequestInit = {}): Pr
     }
     throw fetchError;
   }
+}
+
+export async function getEditableUserProfile(): Promise<UserProfile> {
+  return fetchWithAuth<UserProfile>('/v1/users/profile');
+}
+
+export async function updateEditableUserProfile(profile: Partial<UserProfile>): Promise<UserProfile> {
+  return fetchWithAuth<UserProfile>('/v1/users/profile', {
+    method: 'PATCH',
+    body: JSON.stringify(profile),
+  });
 }
 
 /**
@@ -464,6 +480,94 @@ export async function reviewMemory(id: string, accept: boolean): Promise<void> {
 }
 
 // ============================================================================
+// Review Inbox API
+// ============================================================================
+
+export interface GetReviewInboxParams {
+  limit?: number;
+  offset?: number;
+  status?: ReviewItemStatus;
+  type?: ReviewItemType | 'all';
+}
+
+type ReviewInboxWireResponse = Partial<ReviewInboxResponse> & {
+  review_items?: ReviewItem[];
+  candidates?: ReviewItem[];
+  hasMore?: boolean;
+  totals?: Partial<ReviewInboxResponse['summary']>;
+};
+
+function normalizeReviewInboxResponse(response: ReviewInboxWireResponse): ReviewInboxResponse {
+  const items = response.items || response.review_items || response.candidates || [];
+  const summary = response.summary || response.totals || {
+    pending: items.filter((item) => item.status === 'pending').length,
+    memories: items.filter((item) => item.type === 'memory').length,
+    actions: items.filter((item) => item.type === 'action').length,
+  };
+
+  return {
+    items,
+    summary: {
+      pending: summary.pending || 0,
+      memories: summary.memories || 0,
+      actions: summary.actions || 0,
+      approved_today: summary.approved_today,
+      rejected_today: summary.rejected_today,
+    },
+    has_more: response.has_more ?? response.hasMore ?? false,
+  };
+}
+
+export async function getReviewInbox(
+  params: GetReviewInboxParams = {},
+): Promise<ReviewInboxResponse> {
+  const {
+    limit = 50,
+    offset = 0,
+    status = 'pending',
+    type = 'all',
+  } = params;
+
+  const queryParams = new URLSearchParams({
+    limit: limit.toString(),
+    offset: offset.toString(),
+    status,
+  });
+
+  if (type !== 'all') {
+    queryParams.set('type', type);
+  }
+
+  const response = await fetchWithAuth<ReviewInboxWireResponse>(
+    `/v1/review/inbox?${queryParams}`,
+  );
+
+  return normalizeReviewInboxResponse(response);
+}
+
+export async function reviewInboxItem(id: string, approve: boolean): Promise<void> {
+  await fetchWithAuth(`/v1/review/items/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status: approve ? 'approved' : 'rejected' }),
+  });
+  invalidateCache(invalidationPatterns.reviewInbox);
+  invalidateCache(invalidationPatterns.memories);
+  invalidateCache(invalidationPatterns.actionItems);
+}
+
+export async function updateReviewInboxItem(
+  id: string,
+  updates: Partial<Pick<ReviewItem, 'content' | 'proposed_content' | 'due_at' | 'tags'>>,
+): Promise<ReviewItem> {
+  const item = await fetchWithAuth<ReviewItem>(`/v1/review/items/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+  invalidateCache(invalidationPatterns.reviewInbox);
+  return item;
+}
+
+// ============================================================================
 // Knowledge Graph API
 // ============================================================================
 
@@ -599,7 +703,7 @@ export async function sendMessageStream(
   let token: string | null = null;
 
   try {
-    token = await getIdToken();
+    token = await getPlatformToken();
   } catch (tokenError) {
     console.error('Failed to get auth token:', tokenError);
     throw new Error('Failed to get authentication token');
@@ -701,7 +805,7 @@ export async function uploadChatFiles(
   let token: string | null = null;
 
   try {
-    token = await getIdToken();
+    token = await getPlatformToken();
   } catch (tokenError) {
     console.error('Failed to get auth token:', tokenError);
     throw new Error('Failed to get authentication token');
@@ -748,7 +852,7 @@ export async function transcribeVoiceMessage(audioBlob: Blob): Promise<string> {
   let token: string | null = null;
 
   try {
-    token = await getIdToken();
+    token = await getPlatformToken();
   } catch (tokenError) {
     console.error('Failed to get auth token:', tokenError);
     throw new Error('Failed to get authentication token');
@@ -762,7 +866,7 @@ export async function transcribeVoiceMessage(audioBlob: Blob): Promise<string> {
 
   const formData = new FormData();
   // API expects field name 'files' (matching mobile app)
-  formData.append('files', audioBlob, 'audio.wav');
+  formData.append('files', audioBlob, getVoiceMessageFilename(audioBlob.type));
 
   const response = await fetch(url, {
     method: 'POST',
@@ -779,7 +883,14 @@ export async function transcribeVoiceMessage(audioBlob: Blob): Promise<string> {
   }
 
   const data = await response.json();
-  return data.transcript || '';
+  return data.transcript || data.text || '';
+}
+
+function getVoiceMessageFilename(contentType: string): string {
+  if (contentType.includes('mp4') || contentType.includes('m4a')) return 'voice-message.m4a';
+  if (contentType.includes('ogg')) return 'voice-message.ogg';
+  if (contentType.includes('webm')) return 'voice-message.webm';
+  return 'voice-message.audio';
 }
 
 // ============================================================================
@@ -916,7 +1027,7 @@ export async function createApp(
   let token: string | null = null;
 
   try {
-    token = await getIdToken();
+    token = await getPlatformToken();
   } catch (tokenError) {
     console.error('Failed to get auth token:', tokenError);
     throw new Error('Failed to get authentication token');
@@ -962,7 +1073,7 @@ export async function updateApp(
   let token: string | null = null;
 
   try {
-    token = await getIdToken();
+    token = await getPlatformToken();
   } catch (tokenError) {
     console.error('Failed to get auth token:', tokenError);
     throw new Error('Failed to get authentication token');
@@ -1014,7 +1125,7 @@ export async function uploadAppThumbnail(file: File): Promise<ThumbnailUploadRes
   let token: string | null = null;
 
   try {
-    token = await getIdToken();
+    token = await getPlatformToken();
   } catch (tokenError) {
     console.error('Failed to get auth token:', tokenError);
     throw new Error('Failed to get authentication token');
@@ -1096,7 +1207,7 @@ export async function generateAppDescriptionAndEmoji(
  */
 export async function getNotificationScopes(): Promise<NotificationScope[]> {
   try {
-    const token = await getIdToken();
+    const token = await getPlatformToken();
     if (!token) return [];
 
     const response = await fetch(
@@ -1123,7 +1234,7 @@ export async function getNotificationScopes(): Promise<NotificationScope[]> {
  */
 export async function getPaymentPlans(): Promise<PaymentPlan[]> {
   try {
-    const token = await getIdToken();
+    const token = await getPlatformToken();
     if (!token) return [];
 
     const response = await fetch(`${API_BASE_URL}/v1/app/plans`, {
@@ -1219,7 +1330,10 @@ export async function getDailySummaries(
     limit: limit.toString(),
     offset: offset.toString(),
   });
-  return fetchWithAuth<DailySummary[]>(`/v1/users/daily-summaries?${queryParams}`);
+  const response = await fetchWithAuth<DailySummary[] | { summaries?: DailySummary[] }>(
+    `/v1/users/daily-summaries?${queryParams}`,
+  );
+  return Array.isArray(response) ? response : response.summaries ?? [];
 }
 
 /**
@@ -1688,7 +1802,7 @@ export async function deleteMcpApiKey(keyId: string): Promise<void> {
  * Export all user data as a downloadable JSON blob (streamed from backend).
  */
 export async function exportAllData(): Promise<Blob> {
-  const token = await getIdToken();
+  const token = await getPlatformToken();
   if (!token) {
     throw new Error('Not authenticated');
   }
@@ -2016,7 +2130,7 @@ export async function precacheConversationAudio(
  * Used when streaming audio directly from API (fallback when signed URLs unavailable)
  */
 export async function getAudioAuthHeaders(): Promise<Record<string, string>> {
-  const token = await getIdToken();
+  const token = await getPlatformToken();
   if (!token) {
     throw new Error('Not authenticated');
   }

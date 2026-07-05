@@ -3,8 +3,38 @@
  * These endpoints don't require authentication
  */
 
-// For public marketplace, use the configured API base URL or fallback to production
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://omi.splat-i.io';
+// Public marketplace pages use the build-time public API URL or fallback to production.
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || 'https://omi.splat-i.io').replace(/\/+$/, '');
+
+function isRefusedLoopbackFetch(error: unknown): boolean {
+  if (!isLoopbackApiBaseUrl()) {
+    return false;
+  }
+
+  const cause = error instanceof Error ? error.cause : undefined;
+  return (
+    cause instanceof Error &&
+    'code' in cause &&
+    (cause as Error & { code?: string }).code === 'ECONNREFUSED'
+  );
+}
+
+function logPublicApiError(message: string, error: unknown) {
+  if (isRefusedLoopbackFetch(error)) {
+    return;
+  }
+
+  console.error(message, error);
+}
+
+function isLoopbackApiBaseUrl(): boolean {
+  try {
+    const { hostname } = new URL(API_BASE_URL);
+    return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1';
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Fetch approved apps for the public marketplace
@@ -51,7 +81,7 @@ export async function getApprovedApps(): Promise<{
       stats: data.stats || [],
     };
   } catch (error) {
-    console.error('Error fetching approved apps:', error);
+    logPublicApiError('Error fetching approved apps:', error);
     return { plugins: [], stats: [] };
   }
 }
@@ -91,7 +121,7 @@ export async function getAppById(appId: string): Promise<{
     const app = plugins.find((p) => p.id === appId);
     return app || null;
   } catch (error) {
-    console.error('Error fetching app:', error);
+    logPublicApiError('Error fetching app:', error);
     return null;
   }
 }
@@ -245,7 +275,7 @@ export async function getAppsV2(includeReviews = false): Promise<V2AppsResponse>
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error('Error fetching v2 apps:', error);
+    logPublicApiError('Error fetching v2 apps:', error);
     return { groups: [], meta: { capabilities: [], groupCount: 0, limit: 20, offset: 0 } };
   }
 }
@@ -299,7 +329,7 @@ export async function getAppsByCapability(
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error(`Error fetching apps for capability ${capability}:`, error);
+    logPublicApiError(`Error fetching apps for capability ${capability}:`, error);
     return {
       data: [],
       pagination: {
@@ -327,12 +357,8 @@ export async function getAllAppsV2(includeReviews = false): Promise<V2AppData[]>
     const allApps: V2AppData[] = [];
     const { groups } = await getAppsV2(includeReviews);
 
-    console.log('Fetching all v2 apps with pagination...');
-
     // For each capability group
     for (const group of groups) {
-      console.log(`- ${group.capability.id}: ${group.pagination.count} of ${group.pagination.total} apps`);
-
       // Add first page apps
       allApps.push(...group.data);
 
@@ -350,13 +376,10 @@ export async function getAllAppsV2(includeReviews = false): Promise<V2AppData[]>
             includeReviews
           );
 
-          console.log(`  Fetched page ${page + 1}/${totalPages} (${response.data.length} apps)`);
           allApps.push(...response.data);
         }
       }
     }
-
-    console.log(`Total apps fetched: ${allApps.length}`);
 
     // Deduplicate apps by ID (apps can appear in multiple capability groups)
     const uniqueAppsMap = new Map<string, V2AppData>();
@@ -367,11 +390,10 @@ export async function getAllAppsV2(includeReviews = false): Promise<V2AppData[]>
     }
 
     const uniqueApps = Array.from(uniqueAppsMap.values());
-    console.log(`Unique apps after deduplication: ${uniqueApps.length}`);
 
     return uniqueApps;
   } catch (error) {
-    console.error('Error fetching all v2 apps:', error);
+    logPublicApiError('Error fetching all v2 apps:', error);
     return [];
   }
 }
@@ -389,7 +411,7 @@ export async function findAppById(id: string): Promise<V2AppData | null> {
     const app = allApps.find((app) => app.id === id);
     return app || null;
   } catch (error) {
-    console.error(`Error finding app by ID ${id}:`, error);
+    logPublicApiError(`Error finding app by ID ${id}:`, error);
     return null;
   }
 }

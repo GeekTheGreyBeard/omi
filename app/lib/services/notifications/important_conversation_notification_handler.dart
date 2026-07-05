@@ -15,7 +15,7 @@ class ImportantConversationEvent {
   ImportantConversationEvent({required this.conversationId, required this.navigateTo});
 }
 
-/// Handler for important conversation FCM notifications
+/// Handler for important conversation remote notifications.
 /// Triggered when a conversation >30 minutes completes processing
 class ImportantConversationNotificationHandler {
   static final _awesomeNotifications = AwesomeNotifications();
@@ -27,7 +27,7 @@ class ImportantConversationNotificationHandler {
   /// Stream to listen for important conversation events
   static Stream<ImportantConversationEvent> get onImportantConversation => _importantConversationController.stream;
 
-  /// Handle important_conversation FCM data message
+  /// Handle important_conversation remote data message.
   ///
   /// The app receives this when a long conversation (>30 min) completes processing.
   /// - Foreground: Provider can show toast, then user can tap notification
