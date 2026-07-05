@@ -7,9 +7,8 @@ Fresh Omi front-end staging clone for Splat-I owned preproduction work.
 - Scope: Android app and web app only
 - Excluded: desktop apps and glasses
 - Backend target: `http://127.0.0.1:18080`
-- Source path: `/run/media/gtgb/GTGB-Files/Projects/omiFrontendRebuild-staging`
-- Splat-I integration docs: `/run/media/gtgb/GTGB-Files/Projects/splatI/omiIntegration-staging/docs/`
-- Obsidian documentation: `OpenClaw/Projects/splatI/omiIntegration-staging/`
+- Source path: canonical local Projects root, `omiFrontendRebuild-staging`
+- Splat-I integration docs: maintained in the private Splat-I integration project notes
 
 This repository now lives directly under the canonical Projects root. Track Splat-I-specific notes, decisions, and release evidence in this wrapper and in the Splat-I integration docs.
 
@@ -21,6 +20,6 @@ Local placeholder Firebase files are used only for staging buildability because 
 
 ## Evidence
 
-- Android APK: `/run/media/gtgb/GTGB-Files/OpenClaw/artifacts/omiFrontendRebuild/android/omi-dev-release.apk`
-- Web build ID: `/run/media/gtgb/GTGB-Files/OpenClaw/artifacts/omiFrontendRebuild/web/BUILD_ID`
-- RaBobster launch logcat: `/run/media/gtgb/GTGB-Files/OpenClaw/artifacts/omiFrontendRebuild/logs/rabobster-launch-logcat.txt`
+- Android APK: private build artifact retained outside the public repo
+- Web build ID: private build artifact retained outside the public repo
+- RaBobster launch logcat: private validation artifact retained outside the public repo

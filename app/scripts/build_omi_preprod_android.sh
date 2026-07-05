@@ -2,8 +2,8 @@
 set -euo pipefail
 
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-FLUTTER_BIN="${FLUTTER_BIN:-/run/media/gtgb/GTGB-Files/Developer/flutter/3.35.3/bin/flutter}"
-ANDROID_HOME="${ANDROID_HOME:-/run/media/gtgb/GTGB-Files/Developer/android-sdk}"
+FLUTTER_BIN="${FLUTTER_BIN:-flutter}"
+ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
 ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
 API_BASE_URL="${API_BASE_URL:-https://omi.splat-i.io/}"
 STAGING_API_URL="${STAGING_API_URL:-https://omi.splat-i.io/}"
