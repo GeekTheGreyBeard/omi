@@ -7,11 +7,11 @@ Fresh Omi front-end staging clone for Splat-I owned preproduction work.
 - Scope: Android app and web app only
 - Excluded: desktop apps and glasses
 - Backend target: `http://127.0.0.1:18080`
-- Source path: `/run/media/gtgb/GTGB-Files/Projects/RASiTechnical/splatI/omiFrontendRebuild-staging`
-- Splat-I integration docs: `../omiIntegration-staging/docs/`
+- Source path: `/run/media/gtgb/GTGB-Files/Projects/omiFrontendRebuild-staging`
+- Splat-I integration docs: `/run/media/gtgb/GTGB-Files/Projects/RASiTechnical/splatI/omiIntegration-staging/docs/`
 - Obsidian documentation: `OpenClaw/Projects/splatI/omiIntegration-staging/`
 
-The nested `Omi/` directory is a local upstream worktree and is intentionally ignored by the Splat-I repository. Track Splat-I-specific notes, decisions, and release evidence in this wrapper and in `../omiIntegration-staging/docs/`.
+This repository now lives directly under the canonical Projects root. Track Splat-I-specific notes, decisions, and release evidence in this wrapper and in the Splat-I integration docs.
 
 ## Local Build Notes
 
